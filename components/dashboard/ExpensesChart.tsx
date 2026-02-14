@@ -162,6 +162,7 @@ export default function ExpensesChart({ data, totalExpenses, currency = "EUR" }:
                             />
                             <Legend
                                 content={renderLegend}
+                                // @ts-ignore
                                 payload={
                                     data.map((item, index) => ({
                                         id: item.category,
