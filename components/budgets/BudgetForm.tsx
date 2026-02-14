@@ -166,7 +166,12 @@ export default function BudgetForm({ categories, existingBudget, trigger }: Budg
                                 <FormItem>
                                     <FormLabel>Límite Mensual (€)</FormLabel>
                                     <FormControl>
-                                        <Input type="number" {...field} />
+                                        <Input
+                                            type="number"
+                                            {...field}
+                                            value={(field.value as number) || ''}
+                                            onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                                        />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
