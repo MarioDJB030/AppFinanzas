@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FinanzApp - Tu Gestor de Finanzas Personales",
+  title: "FinanzApp IA",
   description: "Gestor financiero inteligente con IA",
   manifest: "/manifest.json",
   appleWebApp: {
