@@ -52,7 +52,7 @@ export default function BudgetForm({ categories, existingBudget, trigger }: Budg
     const router = useRouter();
     const supabase = createClient();
 
-    const form = useForm<z.infer<typeof formSchema>>({
+    const form = useForm({
         resolver: zodResolver(formSchema),
         defaultValues: {
             category_id: existingBudget?.category_id || "",
