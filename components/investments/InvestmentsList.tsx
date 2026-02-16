@@ -158,106 +158,108 @@ export default function InvestmentsList({ investments: initialInvestments }: Inv
                     </Button>
                 </CardHeader>
                 <CardContent>
-                    <div className="space-y-3">
-                        {initialInvestments.map((investment) => {
-                            const isPositive = investment.gain >= 0;
-                            const typeInfo = typeLabels[investment.asset_type] || typeLabels.other;
+                    <div className="overflow-x-auto pb-2">
+                        <div className="space-y-3 min-w-max">
+                            {initialInvestments.map((investment) => {
+                                const isPositive = investment.gain >= 0;
+                                const typeInfo = typeLabels[investment.asset_type] || typeLabels.other;
 
-                            // Check if price is stale (older than 24h)
-                            const lastUpdated = investment.last_updated ? new Date(investment.last_updated) : null;
-                            const isStale = !lastUpdated || (new Date().getTime() - lastUpdated.getTime() > 24 * 60 * 60 * 1000);
+                                // Check if price is stale (older than 24h)
+                                const lastUpdated = investment.last_updated ? new Date(investment.last_updated) : null;
+                                const isStale = !lastUpdated || (new Date().getTime() - lastUpdated.getTime() > 24 * 60 * 60 * 1000);
 
-                            return (
-                                <div
-                                    key={investment.id}
-                                    className="flex items-center justify-between p-4 rounded-xl bg-accent/30 hover:bg-accent/50 transition-colors cursor-pointer"
-                                    onClick={() => handleRowClick(investment)}
-                                >
-                                    <div className="flex items-center gap-4">
-                                        {/* Symbol Badge */}
-                                        <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                                            <span className="text-sm font-bold text-primary">
-                                                {investment.symbol.slice(0, 3).toUpperCase()}
-                                            </span>
-                                        </div>
+                                return (
+                                    <div
+                                        key={investment.id}
+                                        className="flex items-center justify-between p-4 rounded-xl bg-accent/30 hover:bg-accent/50 transition-colors cursor-pointer"
+                                        onClick={() => handleRowClick(investment)}
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            {/* Symbol Badge */}
+                                            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                                                <span className="text-sm font-bold text-primary">
+                                                    {investment.symbol.slice(0, 3).toUpperCase()}
+                                                </span>
+                                            </div>
 
-                                        {/* Info */}
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <p className="font-semibold">{investment.symbol}</p>
-                                                <Badge className={typeInfo.color} variant="secondary">
-                                                    {typeInfo.label}
-                                                </Badge>
-                                                {isStale && (
-                                                    <span className="text-[10px] text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded">
-                                                        Desactualizado
+                                            {/* Info */}
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-semibold">{investment.symbol}</p>
+                                                    <Badge className={typeInfo.color} variant="secondary">
+                                                        {typeInfo.label}
+                                                    </Badge>
+                                                    {isStale && (
+                                                        <span className="text-[10px] text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                                                            Desactualizado
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                                                    <span>{investment.quantity} unidades</span>
+                                                    <span>·</span>
+                                                    <span>
+                                                        Avg: {formatCurrency(investment.avg_buy_price, investment.currency)}
                                                     </span>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                                                <span>{investment.quantity} unidades</span>
-                                                <span>·</span>
-                                                <span>
-                                                    Avg: {formatCurrency(investment.avg_buy_price, investment.currency)}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Values */}
-                                    <div className="flex items-center gap-4">
-                                        <div className="text-right">
-                                            <p className="font-semibold">
-                                                {formatCurrency(investment.value, investment.currency)}
-                                            </p>
-                                            <div
-                                                className={`flex items-center justify-end gap-1 text-sm ${isPositive ? "text-emerald-500" : "text-rose-500"
-                                                    }`}
-                                            >
-                                                {isPositive ? (
-                                                    <TrendingUp className="w-3 h-3" />
-                                                ) : (
-                                                    <TrendingDown className="w-3 h-3" />
-                                                )}
-                                                <span>
-                                                    {isPositive ? "+" : ""}
-                                                    {investment.gainPercent.toFixed(2)}%
-                                                </span>
+                                                </div>
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center gap-2">
-                                            <div className="text-right text-sm text-muted-foreground">
-                                                <p>Precio</p>
-                                                <p className="font-medium text-foreground">
-                                                    {formatCurrency(investment.currentPrice || investment.avg_buy_price, investment.currency)}
+                                        {/* Values */}
+                                        <div className="flex items-center gap-4">
+                                            <div className="text-right">
+                                                <p className="font-semibold">
+                                                    {formatCurrency(investment.value, investment.currency)}
                                                 </p>
+                                                <div
+                                                    className={`flex items-center justify-end gap-1 text-sm ${isPositive ? "text-emerald-500" : "text-rose-500"
+                                                        }`}
+                                                >
+                                                    {isPositive ? (
+                                                        <TrendingUp className="w-3 h-3" />
+                                                    ) : (
+                                                        <TrendingDown className="w-3 h-3" />
+                                                    )}
+                                                    <span>
+                                                        {isPositive ? "+" : ""}
+                                                        {investment.gainPercent.toFixed(2)}%
+                                                    </span>
+                                                </div>
                                             </div>
 
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                        <MoreVertical className="w-4 h-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleDelete(investment.id);
-                                                        }}
-                                                        className="text-destructive"
-                                                    >
-                                                        <Trash2 className="w-4 h-4 mr-2" />
-                                                        Eliminar
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
+                                            <div className="flex items-center gap-2">
+                                                <div className="text-right text-sm text-muted-foreground">
+                                                    <p>Precio</p>
+                                                    <p className="font-medium text-foreground">
+                                                        {formatCurrency(investment.currentPrice || investment.avg_buy_price, investment.currency)}
+                                                    </p>
+                                                </div>
+
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                            <MoreVertical className="w-4 h-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDelete(investment.id);
+                                                            }}
+                                                            className="text-destructive"
+                                                        >
+                                                            <Trash2 className="w-4 h-4 mr-2" />
+                                                            Eliminar
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
+                        </div>
                     </div>
                 </CardContent>
             </Card>

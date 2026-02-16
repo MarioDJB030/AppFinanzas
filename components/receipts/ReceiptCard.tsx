@@ -4,12 +4,18 @@ import { useState } from "react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Trash2, Eye, Paperclip, Loader2 } from "lucide-react";
+import { FileText, Trash2, Eye, Paperclip, Loader2, MoreVertical } from "lucide-react";
 import type { Receipt } from "@/types/database";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { deleteReceipt } from "@/actions/receipts";
 import { toast } from "sonner";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface ReceiptCardProps {
     receipt: Receipt;
@@ -33,6 +39,8 @@ export default function ReceiptCard({ receipt, onView, onLink }: ReceiptCardProp
         }
     };
 
+    const [showMenu, setShowMenu] = useState(false);
+
     return (
         <Card className="group overflow-hidden hover:shadow-md transition-all">
             <CardContent className="p-0 aspect-square relative bg-muted/30 flex items-center justify-center overflow-hidden">
@@ -48,8 +56,8 @@ export default function ReceiptCard({ receipt, onView, onLink }: ReceiptCardProp
                     />
                 )}
 
-                {/* Overlay on hover */}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                {/* Overlay on hover (Desktop) */}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 hidden md:flex">
                     <Button size="icon" variant="secondary" onClick={() => onView(receipt)}>
                         <Eye className="w-4 h-4" />
                     </Button>
@@ -71,9 +79,40 @@ export default function ReceiptCard({ receipt, onView, onLink }: ReceiptCardProp
                 )}
             </CardContent>
             <CardFooter className="p-3 flex flex-col items-start gap-1">
-                <p className="font-medium text-sm truncate w-full" title={receipt.name}>
-                    {receipt.name}
-                </p>
+                <div className="flex w-full items-start justify-between gap-2">
+                    <p className="font-medium text-sm truncate" title={receipt.name}>
+                        {receipt.name}
+                    </p>
+
+                    <DropdownMenu open={showMenu} onOpenChange={setShowMenu}>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 -mt-1 -mr-2 text-muted-foreground shrink-0">
+                                <MoreVertical className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => onView(receipt)}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                Ver documento
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onLink(receipt)}>
+                                <Paperclip className="w-4 h-4 mr-2" />
+                                Enlazar transacción
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    handleDelete();
+                                }}
+                                className="text-destructive focus:text-destructive"
+                            >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Eliminar
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+
                 <div className="flex justify-between w-full text-xs text-muted-foreground">
                     <span>
                         {receipt.created_at

@@ -125,7 +125,7 @@ export default function ReceiptUpload({ transactions = [], accounts, categories 
             <div
                 {...getRootProps()}
                 className={cn(
-                    "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors flex flex-col items-center justify-center gap-4 bg-muted/20 hover:bg-muted/40",
+                    "border-2 border-dashed rounded-lg p-4 md:p-8 text-center cursor-pointer transition-colors flex flex-col items-center justify-center gap-4 bg-muted/20 hover:bg-muted/40",
                     isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25",
                     (uploading || analyzing) ? "opacity-50 cursor-not-allowed" : ""
                 )}
@@ -159,7 +159,7 @@ export default function ReceiptUpload({ transactions = [], accounts, categories 
             </div>
 
             {transactions.length > 0 && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col md:flex-row md:items-center gap-2">
                     <span className="text-sm text-muted-foreground whitespace-nowrap">Enlazar a transacción (opcional):</span>
                     <Select value={selectedTransactionId} onValueChange={setSelectedTransactionId} disabled={uploading || analyzing}>
                         <SelectTrigger className="w-full">
