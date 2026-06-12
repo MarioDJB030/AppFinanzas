@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createClientWithUser } from "@/utils/supabase/server";
 import { checkForRecurringPayments } from "@/utils/recurringPayments";
 import { ensureUserHasCategories } from "@/utils/defaultCategories";
 import BalanceCard from "@/components/dashboard/BalanceCard";
@@ -11,54 +11,35 @@ import AiAdvisor from "@/components/dashboard/AiAdvisor";
 import { getUserSettings } from "@/actions/settings";
 
 export default async function DashboardPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await createClientWithUser();
 
     if (!user) {
         return null;
     }
 
-    // Ensure user has default categories
-    await ensureUserHasCategories(supabase, user.id);
+    // Fire-and-forget: ensure categories and check recurring payments in background
+    // (We don't await them to unblock rendering)
+    ensureUserHasCategories(supabase, user.id).catch(console.error);
+    checkForRecurringPayments(supabase, user.id).catch(console.error);
 
-    // Check and process recurring payments
-    await checkForRecurringPayments(supabase, user.id);
+    // Parallelize all data fetching
+    const [
+        settings,
+        { data: accounts },
+        { data: transactions },
+        { data: categories },
+        { data: budgets },
+        { data: goals }
+    ] = await Promise.all([
+        getUserSettings(supabase, user.id),
+        supabase.from("accounts").select("*").eq("user_id", user.id),
+        supabase.from("transactions").select(`*, category:categories(*), account:accounts(*)`).eq("user_id", user.id).order("date", { ascending: false }),
+        supabase.from("categories").select("*").eq("user_id", user.id),
+        supabase.from("budgets").select(`*, category:categories(*)`).eq("user_id", user.id),
+        supabase.from("goals").select("*").eq("user_id", user.id)
+    ]);
 
-    // Fetch user settings
-    const settings = await getUserSettings();
     const currency = settings?.currency || "EUR";
-
-    // Fetch accounts
-    const { data: accounts } = await supabase
-        .from("accounts")
-        .select("*")
-        .eq("user_id", user.id);
-
-    // Fetch transactions with category for expense chart
-    const { data: transactions } = await supabase
-        .from("transactions")
-        .select(`
-      *,
-      category:categories(*),
-      account:accounts(*)
-    `)
-        .eq("user_id", user.id)
-        .order("date", { ascending: false });
-
-    // Fetch categories
-    const { data: categories } = await supabase
-        .from("categories")
-        .select("*")
-        .eq("user_id", user.id);
-
-    // Fetch budgets
-    const { data: budgets } = await supabase
-        .from("budgets")
-        .select(`
-            *,
-            categories:categories(*)
-        `)
-        .eq("user_id", user.id);
 
     // Calculate totals
     const totalAccountBalance = accounts?.reduce(
@@ -146,8 +127,8 @@ export default async function DashboardPage() {
 
             {/* Row 3: Budget & Goal Focus */}
             <div className="grid gap-6 md:grid-cols-2">
-                <BudgetSummary currency={currency} />
-                <DashboardGoal currency={currency} />
+                <BudgetSummary currency={currency} budgets={budgets ?? []} transactions={transactions ?? []} />
+                <DashboardGoal currency={currency} goals={goals ?? []} />
             </div>
 
             {/* Row 4: Analysis */}

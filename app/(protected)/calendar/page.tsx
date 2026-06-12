@@ -1,45 +1,46 @@
-import { createClient } from "@/utils/supabase/server";
+import { createClientWithUser } from "@/utils/supabase/server";
 import PaymentCalendar from "@/components/calendar/PaymentCalendar";
 import RecurringRulesList from "@/components/calendar/RecurringRulesList";
 import RecurringRuleForm from "@/components/calendar/RecurringRuleForm";
 
 export default async function CalendarPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await createClientWithUser();
 
     if (!user) return null;
 
-    // Fetch transactions for the calendar
-    const { data: transactions } = await supabase
-        .from("transactions")
-        .select(`
-      *,
-      category:categories(*)
-    `)
-        .eq("user_id", user.id)
-        .order("date", { ascending: false });
-
-    // Fetch recurring rules
-    const { data: recurringRules } = await supabase
-        .from("recurring_rules")
-        .select(`
-      *,
-      category:categories(*),
-      account:accounts(*)
-    `)
-        .eq("user_id", user.id)
-        .order("next_due_date", { ascending: true });
-
-    // Fetch accounts and categories for the form
-    const { data: accounts } = await supabase
-        .from("accounts")
-        .select("*")
-        .eq("user_id", user.id);
-
-    const { data: categories } = await supabase
-        .from("categories")
-        .select("*")
-        .eq("user_id", user.id);
+    // Fetch all required data in parallel
+    const [
+        { data: transactions },
+        { data: recurringRules },
+        { data: accounts },
+        { data: categories }
+    ] = await Promise.all([
+        supabase
+            .from("transactions")
+            .select(`
+                *,
+                category:categories(*)
+            `)
+            .eq("user_id", user.id)
+            .order("date", { ascending: false }),
+        supabase
+            .from("recurring_rules")
+            .select(`
+                *,
+                category:categories(*),
+                account:accounts(*)
+            `)
+            .eq("user_id", user.id)
+            .order("next_due_date", { ascending: true }),
+        supabase
+            .from("accounts")
+            .select("*")
+            .eq("user_id", user.id),
+        supabase
+            .from("categories")
+            .select("*")
+            .eq("user_id", user.id)
+    ]);
 
     // Prepare calendar events
     const calendarEvents = [

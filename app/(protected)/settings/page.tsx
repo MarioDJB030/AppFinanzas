@@ -108,7 +108,7 @@ export default function SettingsPage() {
 
             // Convert to CSV
             const headers = ["Fecha", "Descripción", "Monto", "Categoría", "Cuenta", "Tipo"];
-            const rows = transactions.map(t => [
+            const rows = transactions.map((t: any) => [
                 t.date,
                 t.description || "",
                 t.amount,
@@ -119,7 +119,7 @@ export default function SettingsPage() {
 
             const csvContent = [
                 headers.join(","),
-                ...rows.map(row => row.join(","))
+                ...rows.map((row: any[]) => row.join(","))
             ].join("\n");
 
             // Download

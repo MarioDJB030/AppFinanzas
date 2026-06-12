@@ -1,12 +1,11 @@
-import { createClient } from "@/utils/supabase/server";
+import { createClientWithUser } from "@/utils/supabase/server";
 import { calculatePortfolioValue } from "@/utils/financeAPI";
 import PortfolioSummary from "@/components/investments/PortfolioSummary";
 import InvestmentsList from "@/components/investments/InvestmentsList";
 import InvestmentForm from "@/components/investments/InvestmentForm";
 
 export default async function InvestmentsPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await createClientWithUser();
 
     if (!user) return null;
 

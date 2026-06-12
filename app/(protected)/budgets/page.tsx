@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createClientWithUser } from "@/utils/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import BudgetCard from "@/components/budgets/BudgetCard";
@@ -11,13 +11,16 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
 export default async function BudgetsPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await createClientWithUser();
 
     if (!user) return null;
 
-    // 1. Fetch User Settings
-    const settings = await getUserSettings();
+    // We still need settings to calculate the date range before fetching expenses
+    // BUT we can fetch settings and categories/budgets in parallel first.
+    // However, it's simpler to fetch settings first, then fetch the rest in parallel.
+    // Or we can just fetch everything in parallel and filter expenses client side (not ideal for large datasets).
+    // Let's fetch settings first, since date range depends on startDay.
+    const settings = await getUserSettings(supabase, user.id);
     const currency = settings?.currency || "EUR";
     const startDay = settings?.start_day_of_month || 1;
 
@@ -26,28 +29,21 @@ export default async function BudgetsPage() {
     const startOfPeriod = format(start, "yyyy-MM-dd");
     const endOfPeriod = format(end, "yyyy-MM-dd");
 
-    // 3. Fetch Categories
-    const { data: categories } = await supabase
-        .from("categories")
-        .select("*")
-        .eq("user_id", user.id);
-
-    // 4. Fetch Budgets
-    const { data: budgets } = await supabase
-        .from("budgets")
-        .select(`
-            *,
-            category:categories(*)
-        `)
-        .eq("user_id", user.id);
-
-    // 5. Fetch expenses for current CUSTOM period
-    const { data: rawExpenses, error: expensesError } = await supabase
-        .from("transactions")
-        .select("amount, category_id, date, categories!inner(type)")
-        .eq("user_id", user.id)
-        .gte("date", startOfPeriod)
-        .lte("date", endOfPeriod);
+    // 3. Fetch all other data in parallel
+    const [
+        { data: categories },
+        { data: budgets },
+        { data: rawExpenses, error: expensesError }
+    ] = await Promise.all([
+        supabase.from("categories").select("*").eq("user_id", user.id),
+        supabase.from("budgets").select(`*, category:categories(*)`).eq("user_id", user.id),
+        supabase
+            .from("transactions")
+            .select("amount, category_id, date, categories!inner(type)")
+            .eq("user_id", user.id)
+            .gte("date", startOfPeriod)
+            .lte("date", endOfPeriod)
+    ]);
 
     if (expensesError) {
         console.error("Error fetching expenses:", expensesError);

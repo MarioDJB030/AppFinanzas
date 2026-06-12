@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createClientWithUser } from "@/utils/supabase/server";
 import TransactionsList from "@/components/transactions/TransactionsList";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import CSVImporter from "@/components/transactions/CSVImporter";
@@ -7,37 +7,38 @@ import CSVExporter from "@/components/transactions/CSVExporter";
 import { getUserSettings } from "@/actions/settings";
 
 export default async function TransactionsPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await createClientWithUser();
 
     if (!user) return null;
 
-    // Fetch user settings
-    const settings = await getUserSettings();
+    const [
+        settings,
+        { data: transactions },
+        { data: accounts },
+        { data: categories }
+    ] = await Promise.all([
+        getUserSettings(supabase, user.id),
+        supabase
+            .from("transactions")
+            .select(`
+                *,
+                category:categories(*),
+                account:accounts(*),
+                receipts(*)
+            `)
+            .eq("user_id", user.id)
+            .order("date", { ascending: false }),
+        supabase
+            .from("accounts")
+            .select("*")
+            .eq("user_id", user.id),
+        supabase
+            .from("categories")
+            .select("*")
+            .eq("user_id", user.id)
+    ]);
+
     const currency = settings?.currency || "EUR";
-
-    // Fetch transactions with relations
-    const { data: transactions } = await supabase
-        .from("transactions")
-        .select(`
-      *,
-      category:categories(*),
-      account:accounts(*),
-      receipts(*)
-    `)
-        .eq("user_id", user.id)
-        .order("date", { ascending: false });
-
-    // Fetch accounts and categories for forms
-    const { data: accounts } = await supabase
-        .from("accounts")
-        .select("*")
-        .eq("user_id", user.id);
-
-    const { data: categories } = await supabase
-        .from("categories")
-        .select("*")
-        .eq("user_id", user.id);
 
     return (
         <div className="space-y-6">

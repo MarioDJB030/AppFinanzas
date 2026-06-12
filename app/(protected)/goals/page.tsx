@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createClientWithUser } from "@/utils/supabase/server";
 import GoalCard from "@/components/goals/GoalCard";
 import GoalForm from "@/components/goals/GoalForm";
 import { Trophy } from "lucide-react";
@@ -6,20 +6,24 @@ import type { Goal } from "@/types/database";
 import { getUserSettings } from "@/actions/settings";
 
 export default async function GoalsPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await createClientWithUser();
 
     if (!user) return null;
 
-    // Fetch user settings
-    const settings = await getUserSettings();
-    const currency = settings?.currency || "EUR";
+    // Fetch user settings and goals in parallel
+    const [
+        settings,
+        { data: goals }
+    ] = await Promise.all([
+        getUserSettings(supabase, user.id),
+        supabase
+            .from("goals")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false })
+    ]);
 
-    const { data: goals } = await supabase
-        .from("goals")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+    const currency = settings?.currency || "EUR";
 
     return (
         <div className="space-y-6">

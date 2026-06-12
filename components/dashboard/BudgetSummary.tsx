@@ -1,50 +1,34 @@
-import { createClient } from "@/utils/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import { ArrowRight, AlertTriangle, CheckCircle2, AlertCircle } from "lucide-react";
-import type { Budget, Category } from "@/types/database";
+import type { Budget } from "@/types/database";
 
 interface BudgetSummaryProps {
     currency?: string;
+    budgets: any[]; // Or Budget[] if type matches
+    transactions: any[];
 }
 
-export default async function BudgetSummary({ currency = "EUR" }: BudgetSummaryProps) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) return null;
-
-    // 1. Fetch Budgets with Categories
-    const { data: budgets } = await supabase
-        .from("budgets")
-        .select(`
-            *,
-            category:categories(*)
-        `)
-        .eq("user_id", user.id);
-
+export default function BudgetSummary({ currency = "EUR", budgets, transactions }: BudgetSummaryProps) {
     if (!budgets || budgets.length === 0) return null;
 
-    // 2. Fetch Expenses (Same logic as BudgetsPage)
+    // 1. Filter expenses for the current month
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
-    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
-
     const startOfMonth = `${year}-${month}-01`;
-    const endOfMonth = `${year}-${month}-${lastDay}`;
+    // Approximate end of month filter is not strictly needed if transactions are already filtered,
+    // but assuming transactions passed are for the period or we filter them here.
+    // For simplicity, let's filter the transactions passed to those in the current month.
+    
+    const expenses = transactions?.filter((tx: any) => 
+        tx.category?.type === 'expense' && 
+        tx.date >= startOfMonth
+    ) || [];
 
-    const { data: rawExpenses } = await supabase
-        .from("transactions")
-        .select("amount, category_id, categories!inner(type)")
-        .eq("user_id", user.id)
-        .gte("date", startOfMonth)
-        .lte("date", endOfMonth);
-
-    // Filter and Sum
+    // 2. Sum expenses by category
     const spendingMap = new Map<string, number>();
-    const expenses = rawExpenses?.filter((tx: any) => tx.categories?.type === 'expense') || [];
 
     expenses.forEach((tx) => {
         if (tx.category_id) {

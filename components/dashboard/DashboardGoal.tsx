@@ -1,4 +1,3 @@
-import { createClient } from "@/utils/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -8,19 +7,10 @@ import type { Goal } from "@/types/database";
 
 interface DashboardGoalProps {
     currency?: string;
+    goals: Goal[];
 }
 
-export default async function DashboardGoal({ currency = "EUR" }: DashboardGoalProps) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) return null;
-
-    // 1. Fetch all goals for the user
-    const { data: allGoals } = await supabase
-        .from("goals")
-        .select("*")
-        .eq("user_id", user.id);
+export default function DashboardGoal({ currency = "EUR", goals: allGoals }: DashboardGoalProps) {
 
     // ... logic ...
 

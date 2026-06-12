@@ -3,24 +3,30 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { UserSettings } from "@/types/database";
+import { SupabaseClient } from "@supabase/supabase-js";
 
-export async function getUserSettings() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+export async function getUserSettings(existingClient?: SupabaseClient, existingUserId?: string) {
+    let supabase = existingClient;
+    let userId = existingUserId;
 
-    if (!user) return null;
+    if (!supabase || !userId) {
+        supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return null;
+        userId = user.id;
+    }
 
     const { data: settings } = await supabase
         .from("user_settings")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .single();
 
     if (!settings) {
         // Create default settings if not exists
         const defaultSettings = {
-            user_id: user.id,
-            username: user.email?.split("@")[0] || "User",
+            user_id: userId,
+            username: userId ? "User" : "User", // Fallback, could fetch profile if really needed
             currency: "EUR",
             start_day_of_month: 1
         };

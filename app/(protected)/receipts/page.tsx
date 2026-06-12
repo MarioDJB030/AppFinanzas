@@ -1,20 +1,42 @@
-import { createClient } from "@/utils/supabase/server";
+import { createClientWithUser } from "@/utils/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import ReceiptUpload from "@/components/receipts/ReceiptUpload";
 import ReceiptGallery from "@/components/receipts/ReceiptGallery";
 import { Receipt } from "lucide-react";
 
 export default async function ReceiptsPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await createClientWithUser();
 
     if (!user) return null;
 
-    const { data: receiptsData } = await supabase
-        .from("receipts")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+    const [
+        { data: receiptsData },
+        { data: rawTransactions },
+        { data: accounts },
+        { data: categories }
+    ] = await Promise.all([
+        supabase
+            .from("receipts")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false }),
+        supabase
+            .from("transactions")
+            .select("id, description, amount, date, category:categories(name)")
+            .eq("user_id", user.id)
+            .order("date", { ascending: false })
+            .limit(10),
+        supabase
+            .from("accounts")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("name"),
+        supabase
+            .from("categories")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("name")
+    ]);
 
     // Process receipts to generate Signed URLs (in case bucket is private) and extract paths
     const receipts = await Promise.all((receiptsData || []).map(async (receipt) => {
@@ -49,27 +71,6 @@ export default async function ReceiptsPage() {
             file_path: filePath // Ensure path is passed if we found it
         };
     }));
-
-    // Fetch recent transactions for linking
-    const { data: rawTransactions } = await supabase
-        .from("transactions")
-        .select("id, description, amount, date, category:categories(name)")
-        .eq("user_id", user.id)
-        .order("date", { ascending: false })
-        .limit(10);
-
-    // Fetch accounts and categories for AI Transaction creation
-    const { data: accounts } = await supabase
-        .from("accounts")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("name");
-
-    const { data: categories } = await supabase
-        .from("categories")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("name");
 
     // Transform to fix type issues
     const recentTransactions = rawTransactions?.map(t => ({

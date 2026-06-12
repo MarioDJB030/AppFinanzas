@@ -1,25 +1,26 @@
-import { createClient } from "@/utils/supabase/server";
+import { createClientWithUser } from "@/utils/supabase/server";
 import AccountsList from "@/components/accounts/AccountsList";
 import AccountForm from "@/components/accounts/AccountForm";
 
 export default async function AccountsPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await createClientWithUser();
 
     if (!user) return null;
 
-    // Fetch accounts with transaction sums
-    const { data: accounts } = await supabase
-        .from("accounts")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-    // Fetch transactions to calculate balances
-    const { data: transactions } = await supabase
-        .from("transactions")
-        .select("account_id, amount")
-        .eq("user_id", user.id);
+    const [
+        { data: accounts },
+        { data: transactions }
+    ] = await Promise.all([
+        supabase
+            .from("accounts")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false }),
+        supabase
+            .from("transactions")
+            .select("account_id, amount")
+            .eq("user_id", user.id)
+    ]);
 
     // Calculate current balance for each account
     const accountsWithBalance = (accounts ?? []).map((account) => {
