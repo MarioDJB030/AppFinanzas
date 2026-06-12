@@ -66,6 +66,17 @@ export interface Receipt {
     created_at?: string;
 }
 
+export interface RecurringRuleSplit {
+    id: string;
+    rule_id: string;
+    account_id: string;
+    split_mode: "percentage" | "fixed";
+    value: number;
+    created_at?: string;
+    // Joined fields
+    account?: Account;
+}
+
 export interface RecurringRule {
     id: string;
     user_id: string;
@@ -77,10 +88,12 @@ export interface RecurringRule {
     next_due_date: string;
     amount: number;
     active: boolean;
+    is_split: boolean;
     created_at?: string;
     // Joined fields
     account?: Account;
     category?: Category;
+    splits?: RecurringRuleSplit[];
 }
 
 export interface Investment {

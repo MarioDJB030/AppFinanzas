@@ -28,7 +28,8 @@ export default async function CalendarPage() {
             .select(`
                 *,
                 category:categories(*),
-                account:accounts(*)
+                account:accounts(*),
+                splits:recurring_rule_splits(*, account:accounts(*))
             `)
             .eq("user_id", user.id)
             .order("next_due_date", { ascending: true }),

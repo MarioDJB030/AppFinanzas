@@ -84,6 +84,17 @@ CREATE TABLE public.recurring_rules (
     next_due_date   DATE NOT NULL,
     amount          NUMERIC(15, 2) NOT NULL,
     active          BOOLEAN NOT NULL DEFAULT TRUE,
+    is_split        BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Repartos de reglas recurrentes en múltiples cuentas
+CREATE TABLE IF NOT EXISTS public.recurring_rule_splits (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    rule_id         UUID NOT NULL REFERENCES public.recurring_rules (id) ON DELETE CASCADE,
+    account_id      UUID NOT NULL REFERENCES public.accounts (id) ON DELETE CASCADE,
+    split_mode      TEXT NOT NULL CHECK (split_mode IN ('percentage', 'fixed')),
+    value           NUMERIC(15, 2) NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -161,9 +172,10 @@ CREATE INDEX idx_transactions_category_id   ON public.transactions (category_id)
 CREATE INDEX idx_transactions_date          ON public.transactions (date DESC);
 CREATE INDEX idx_transactions_recurring     ON public.transactions (recurring_rule_id)
     WHERE recurring_rule_id IS NOT NULL;
-CREATE INDEX idx_recurring_rules_user_id    ON public.recurring_rules (user_id);
-CREATE INDEX idx_recurring_rules_next_due   ON public.recurring_rules (next_due_date)
+CREATE INDEX IF NOT EXISTS idx_recurring_rules_user_id    ON public.recurring_rules (user_id);
+CREATE INDEX IF NOT EXISTS idx_recurring_rules_next_due   ON public.recurring_rules (next_due_date)
     WHERE active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_recurring_rule_splits_rule ON public.recurring_rule_splits (rule_id);
 CREATE INDEX idx_investments_user_id        ON public.investments (user_id);
 CREATE INDEX idx_budgets_user_id            ON public.budgets (user_id);
 CREATE INDEX idx_goals_user_id              ON public.goals (user_id);
@@ -293,6 +305,7 @@ ALTER TABLE public.accounts        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recurring_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recurring_rule_splits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.investments     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.budgets         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.goals           ENABLE ROW LEVEL SECURITY;
@@ -351,6 +364,20 @@ CREATE POLICY "recurring_rules_update_own" ON public.recurring_rules
     FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "recurring_rules_delete_own" ON public.recurring_rules
     FOR DELETE USING (auth.uid() = user_id);
+
+-- recurring_rule_splits
+CREATE POLICY "recurring_rule_splits_select_own" ON public.recurring_rule_splits
+    FOR SELECT USING (
+        EXISTS (SELECT 1 FROM public.recurring_rules rr WHERE rr.id = rule_id AND rr.user_id = auth.uid())
+    );
+CREATE POLICY "recurring_rule_splits_insert_own" ON public.recurring_rule_splits
+    FOR INSERT WITH CHECK (
+        EXISTS (SELECT 1 FROM public.recurring_rules rr WHERE rr.id = rule_id AND rr.user_id = auth.uid())
+    );
+CREATE POLICY "recurring_rule_splits_delete_own" ON public.recurring_rule_splits
+    FOR DELETE USING (
+        EXISTS (SELECT 1 FROM public.recurring_rules rr WHERE rr.id = rule_id AND rr.user_id = auth.uid())
+    );
 
 -- investments
 CREATE POLICY "investments_select_own" ON public.investments

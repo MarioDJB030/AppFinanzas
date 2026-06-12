@@ -20,6 +20,7 @@ import {
     ArrowUpRight,
     ArrowDownLeft,
     Calendar,
+    GitBranch
 } from "lucide-react";
 import { toast } from "sonner";
 import type { RecurringRule } from "@/types/database";
@@ -128,6 +129,12 @@ export default function RecurringRulesList({ rules }: RecurringRulesListProps) {
                                                     <Badge variant="secondary" className="text-xs">
                                                         {frequencyLabels[rule.frequency] || rule.frequency}
                                                     </Badge>
+                                                    {rule.is_split && (
+                                                        <Badge variant="outline" className="text-xs gap-1 border-primary/20 text-primary">
+                                                            <GitBranch className="w-3 h-3" />
+                                                            Reparto en {rule.splits?.length || 0} cuentas
+                                                        </Badge>
+                                                    )}
                                                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                                                         <Calendar className="w-3 h-3" />
                                                         Próximo: {format(new Date(rule.next_due_date), "d MMM", { locale: es })}

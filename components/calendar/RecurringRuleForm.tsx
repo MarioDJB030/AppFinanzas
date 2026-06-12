@@ -22,9 +22,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import type { Account, Category } from "@/types/database";
+import AccountSplitSelector, { SplitState, SplitMode } from "./AccountSplitSelector";
 
 interface RecurringRuleFormProps {
     accounts: Account[];
@@ -48,6 +50,14 @@ export default function RecurringRuleForm({ accounts, categories }: RecurringRul
     const [categoryId, setCategoryId] = useState("");
     const [frequency, setFrequency] = useState("monthly");
     const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
+    
+    // Reparto state
+    const [isSplit, setIsSplit] = useState(false);
+    const [splitMode, setSplitMode] = useState<SplitMode>("percentage");
+    const [splits, setSplits] = useState<SplitState[]>(
+        accounts.map(a => ({ accountId: a.id, active: false, value: 0 }))
+    );
+    
     const [loading, setLoading] = useState(false);
 
     const router = useRouter();
@@ -57,25 +67,69 @@ export default function RecurringRuleForm({ accounts, categories }: RecurringRul
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        const parsedAmount = Math.abs(parseFloat(amount));
+        const finalAmount = type === "expense" ? -parsedAmount : parsedAmount;
+
+        // Validation for split mode
+        if (isSplit) {
+            const activeSplits = splits.filter(s => s.active);
+            if (activeSplits.length === 0) {
+                toast.error("Selecciona al menos una cuenta para el reparto");
+                return;
+            }
+            
+            const totalSplitValue = activeSplits.reduce((sum, s) => sum + s.value, 0);
+            const targetTotal = splitMode === "percentage" ? 100 : parsedAmount;
+            
+            if (Math.abs(totalSplitValue - targetTotal) > 0.01) { // 0.01 tolerance for floating point
+                toast.error(`El reparto debe sumar exactamente ${targetTotal}${splitMode === "percentage" ? "%" : "€"}`);
+                return;
+            }
+        }
+
         setLoading(true);
 
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("No user");
 
-            const { error } = await supabase.from("recurring_rules").insert({
+            // Insert recurring rule
+            const { data: ruleData, error: ruleError } = await supabase.from("recurring_rules").insert({
                 user_id: user.id,
-                account_id: accountId,
+                account_id: isSplit ? splits.filter(s => s.active)[0]?.accountId : accountId, // First active or selected
                 category_id: categoryId,
-                amount: type === "expense" ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount)),
+                amount: finalAmount,
                 description,
                 frequency,
                 start_date: startDate,
                 next_due_date: startDate,
                 active: true,
-            });
+                is_split: isSplit
+            }).select().single();
 
-            if (error) throw error;
+            if (ruleError) throw ruleError;
+
+            // Insert splits if applicable
+            if (isSplit && ruleData) {
+                const activeSplits = splits.filter(s => s.active);
+                const splitsToInsert = activeSplits.map(s => ({
+                    rule_id: ruleData.id,
+                    account_id: s.accountId,
+                    split_mode: splitMode,
+                    value: s.value
+                }));
+
+                const { error: splitsError } = await supabase
+                    .from("recurring_rule_splits")
+                    .insert(splitsToInsert);
+
+                if (splitsError) {
+                    // Try to clean up the rule if splits failed
+                    await supabase.from("recurring_rules").delete().eq("id", ruleData.id);
+                    throw splitsError;
+                }
+            }
 
             toast.success("Pago recurrente creado");
             setIsOpen(false);
@@ -96,6 +150,9 @@ export default function RecurringRuleForm({ accounts, categories }: RecurringRul
         setCategoryId("");
         setFrequency("monthly");
         setStartDate(new Date().toISOString().split("T")[0]);
+        setIsSplit(false);
+        setSplitMode("percentage");
+        setSplits(accounts.map(a => ({ accountId: a.id, active: false, value: 0 })));
     };
 
     return (
@@ -106,7 +163,7 @@ export default function RecurringRuleForm({ accounts, categories }: RecurringRul
                     Nuevo Pago Recurrente
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <RefreshCw className="w-5 h-5" />
@@ -166,23 +223,25 @@ export default function RecurringRuleForm({ accounts, categories }: RecurringRul
 
                         {/* Account and Category */}
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label>Cuenta</Label>
-                                <Select value={accountId} onValueChange={setAccountId} required>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Seleccionar" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {accounts.map((account) => (
-                                            <SelectItem key={account.id} value={account.id}>
-                                                {account.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                            {!isSplit && (
+                                <div className="space-y-2">
+                                    <Label>Cuenta</Label>
+                                    <Select value={accountId} onValueChange={setAccountId} required={!isSplit}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Seleccionar" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {accounts.map((account) => (
+                                                <SelectItem key={account.id} value={account.id}>
+                                                    {account.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
 
-                            <div className="space-y-2">
+                            <div className={`space-y-2 ${isSplit ? "col-span-2" : ""}`}>
                                 <Label>Categoría</Label>
                                 <Select value={categoryId} onValueChange={setCategoryId} required>
                                     <SelectTrigger>
@@ -197,6 +256,31 @@ export default function RecurringRuleForm({ accounts, categories }: RecurringRul
                                     </SelectContent>
                                 </Select>
                             </div>
+                        </div>
+
+                        {/* Split feature */}
+                        <div className="space-y-4">
+                            <div className="flex items-center space-x-2">
+                                <Checkbox 
+                                    id="is-split" 
+                                    checked={isSplit} 
+                                    onCheckedChange={(c) => setIsSplit(c === true)} 
+                                />
+                                <Label htmlFor="is-split" className="font-medium">
+                                    Repartir a diferentes cuentas
+                                </Label>
+                            </div>
+
+                            {isSplit && (
+                                <AccountSplitSelector
+                                    accounts={accounts}
+                                    splits={splits}
+                                    setSplits={setSplits}
+                                    splitMode={splitMode}
+                                    setSplitMode={setSplitMode}
+                                    totalAmount={Math.abs(parseFloat(amount)) || 0}
+                                />
+                            )}
                         </div>
 
                         {/* Frequency and Start Date */}

@@ -58,7 +58,7 @@ export async function checkForRecurringPayments(
         // Using .select('*') without .single() to avoid PGRST116 error
         const { data: recurringRules, error: fetchError } = await supabase
             .from("recurring_rules")
-            .select("*")
+            .select("*, splits:recurring_rule_splits(*)")
             .eq("user_id", userId)
             .eq("active", true)
             .lte("next_due_date", today.toISOString().split("T")[0]);
@@ -86,21 +86,49 @@ export async function checkForRecurringPayments(
 
                 // Process all missed payments up to today
                 while (isBefore(currentDueDate, today) || isEqual(currentDueDate, today)) {
-                    // Create the transaction
-                    const { error: insertError } = await supabase.from("transactions").insert({
-                        user_id: userId,
-                        account_id: rule.account_id,
-                        category_id: rule.category_id,
-                        amount: rule.amount,
-                        description: rule.description || `Pago recurrente`,
-                        date: currentDueDate.toISOString().split("T")[0],
-                        is_recurring: true,
-                        recurring_rule_id: rule.id,
-                    });
+                    if (rule.is_split && rule.splits && rule.splits.length > 0) {
+                        // Create multiple transactions based on splits
+                        for (const split of rule.splits) {
+                            let splitAmount = 0;
+                            if (split.split_mode === "percentage") {
+                                splitAmount = rule.amount * (split.value / 100);
+                            } else {
+                                // Fixed mode: rule.amount determines sign, split.value determines absolute magnitude
+                                splitAmount = rule.amount < 0 ? -Math.abs(split.value) : Math.abs(split.value);
+                            }
 
-                    if (insertError) {
-                        errors.push(`Error processing rule ${rule.id}: ${insertError.message}`);
-                        break;
+                            const { error: insertError } = await supabase.from("transactions").insert({
+                                user_id: userId,
+                                account_id: split.account_id,
+                                category_id: rule.category_id,
+                                amount: splitAmount,
+                                description: rule.description || `Pago recurrente (Reparto)`,
+                                date: currentDueDate.toISOString().split("T")[0],
+                                is_recurring: true,
+                                recurring_rule_id: rule.id,
+                            });
+
+                            if (insertError) {
+                                errors.push(`Error processing split rule ${rule.id}: ${insertError.message}`);
+                            }
+                        }
+                    } else {
+                        // Create the single transaction
+                        const { error: insertError } = await supabase.from("transactions").insert({
+                            user_id: userId,
+                            account_id: rule.account_id,
+                            category_id: rule.category_id,
+                            amount: rule.amount,
+                            description: rule.description || `Pago recurrente`,
+                            date: currentDueDate.toISOString().split("T")[0],
+                            is_recurring: true,
+                            recurring_rule_id: rule.id,
+                        });
+
+                        if (insertError) {
+                            errors.push(`Error processing rule ${rule.id}: ${insertError.message}`);
+                            break;
+                        }
                     }
 
                     // Calculate next due date
