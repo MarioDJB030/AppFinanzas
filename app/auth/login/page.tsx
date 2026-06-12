@@ -23,22 +23,37 @@ export default function LoginPage() {
         setLoading(true);
 
         try {
-            const { error } = await supabase.auth.signInWithPassword({
+            const { data, error } = await supabase.auth.signInWithPassword({
                 email,
                 password,
             });
 
             if (error) {
+                console.error("Supabase auth error:", error.message, error.status);
                 toast.error("Error al iniciar sesión", {
-                    description: error.message,
+                    description: error.message === "Invalid login credentials"
+                        ? "Credenciales incorrectas. Verifica tu email y contraseña."
+                        : error.message === "Email not confirmed"
+                        ? "Debes confirmar tu email antes de iniciar sesión."
+                        : error.message,
                 });
-            } else {
-                toast.success("¡Bienvenido de nuevo!");
-                router.push("/dashboard");
-                router.refresh();
+                return;
             }
-        } catch {
-            toast.error("Error inesperado");
+
+            if (data?.session) {
+                toast.success("¡Bienvenido de nuevo!");
+                // Use hard redirect to ensure middleware picks up the new auth cookies
+                window.location.href = "/dashboard";
+            } else {
+                toast.error("Error al iniciar sesión", {
+                    description: "No se pudo establecer la sesión. Inténtalo de nuevo.",
+                });
+            }
+        } catch (err) {
+            console.error("Login error:", err);
+            toast.error("Error inesperado", {
+                description: "Ocurrió un error de conexión. Inténtalo de nuevo.",
+            });
         } finally {
             setLoading(false);
         }
