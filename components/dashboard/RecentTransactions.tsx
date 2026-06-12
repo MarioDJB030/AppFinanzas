@@ -79,6 +79,11 @@ export default function RecentTransactions({ transactions, currency = "EUR" }: R
                                             <span className="text-xs text-muted-foreground">
                                                 {format(new Date(transaction.date), "d MMM", { locale: es })}
                                             </span>
+                                            {transaction.goal && (
+                                                <Badge variant="outline" className="text-xs border-primary/50 text-primary">
+                                                    {transaction.goal.icon} {transaction.goal.name}
+                                                </Badge>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

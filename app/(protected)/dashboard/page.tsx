@@ -33,7 +33,7 @@ export default async function DashboardPage() {
     ] = await Promise.all([
         getUserSettings(supabase, user.id),
         supabase.from("accounts").select("*").eq("user_id", user.id),
-        supabase.from("transactions").select(`*, category:categories(*), account:accounts(*)`).eq("user_id", user.id).order("date", { ascending: false }),
+        supabase.from("transactions").select(`*, category:categories(*), account:accounts(*), goal:goals(*)`).eq("user_id", user.id).order("date", { ascending: false }),
         supabase.from("categories").select("*").eq("user_id", user.id),
         supabase.from("budgets").select(`*, category:categories(*)`).eq("user_id", user.id),
         supabase.from("goals").select("*").eq("user_id", user.id)

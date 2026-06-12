@@ -46,11 +46,13 @@ export interface Transaction {
     date: string;
     is_recurring: boolean;
     recurring_rule_id?: string;
+    goal_id?: string | null;
     created_at?: string;
     // Joined fields
     account?: Account;
     category?: Category;
     receipts?: Receipt[];
+    goal?: Goal;
 }
 
 export interface Receipt {

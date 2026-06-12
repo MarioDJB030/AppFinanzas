@@ -19,7 +19,8 @@ export default async function CalendarPage() {
             .from("transactions")
             .select(`
                 *,
-                category:categories(*)
+                category:categories(*),
+                goal:goals(*)
             `)
             .eq("user_id", user.id)
             .order("date", { ascending: false }),

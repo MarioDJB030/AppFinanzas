@@ -68,6 +68,7 @@ CREATE TABLE public.transactions (
     date                DATE NOT NULL,
     is_recurring        BOOLEAN NOT NULL DEFAULT FALSE,
     recurring_rule_id   UUID,  -- FK añadida tras crear recurring_rules
+    goal_id             UUID REFERENCES public.goals (id) ON DELETE SET NULL,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

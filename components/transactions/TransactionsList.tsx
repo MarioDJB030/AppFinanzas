@@ -353,6 +353,11 @@ export default function TransactionsList({ transactions, accounts, currency = "E
                                                                         Recurrente
                                                                     </Badge>
                                                                 )}
+                                                                {transaction.goal && (
+                                                                    <Badge variant="outline" className="text-xs border-primary/50 text-primary">
+                                                                        {transaction.goal.icon} {transaction.goal.name}
+                                                                    </Badge>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>

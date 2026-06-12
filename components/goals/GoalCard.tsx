@@ -12,16 +12,28 @@ import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
-import type { Goal } from "@/types/database";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import type { Goal, Account } from "@/types/database";
 
 interface GoalCardProps {
     goal: Goal;
     currency?: string;
+    accounts?: Account[];
 }
 
-export default function GoalCard({ goal, currency = "EUR" }: GoalCardProps) {
+export default function GoalCard({ goal, currency = "EUR", accounts = [] }: GoalCardProps) {
     const [action, setAction] = useState<"deposit" | "withdraw" | null>(null);
     const [amount, setAmount] = useState("");
+    const [selectedAccountId, setSelectedAccountId] = useState<string>(
+        accounts.length === 1 ? accounts[0].id : ""
+    );
     const [loading, setLoading] = useState(false);
     const router = useRouter();
     const supabase = createClient();
@@ -40,20 +52,57 @@ export default function GoalCard({ goal, currency = "EUR" }: GoalCardProps) {
 
     const handleTransaction = async () => {
         if (!amount || isNaN(parseFloat(amount))) return;
-        setLoading(true);
+        if (!selectedAccountId) {
+            toast.error("Selecciona una cuenta");
+            return;
+        }
 
         const val = parseFloat(amount);
+        
+        if (action === "withdraw" && val > goal.current_amount) {
+            toast.error("No puedes retirar más de lo que has ahorrado");
+            return;
+        }
+
+        setLoading(true);
+
         const newAmount = action === "deposit"
             ? goal.current_amount + val
             : goal.current_amount - val;
 
         try {
-            const { error } = await supabase
+            // Obtener el user_id (lo necesitamos para la transacción)
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("No user");
+
+            // 1. Actualizar la meta
+            const { error: goalError } = await supabase
                 .from("goals")
                 .update({ current_amount: newAmount })
                 .eq("id", goal.id);
 
-            if (error) throw error;
+            if (goalError) throw goalError;
+
+            // 2. Crear la transacción
+            // Si es depósito a la meta, el dinero sale de la cuenta (gasto, valor negativo)
+            // Si es retiro de la meta, el dinero entra a la cuenta (ingreso, valor positivo)
+            const transactionAmount = action === "deposit" ? -Math.abs(val) : Math.abs(val);
+            const transactionDescription = action === "deposit" ? `Aporte a meta: ${goal.name}` : `Retiro de meta: ${goal.name}`;
+
+            const { error: txError } = await supabase
+                .from("transactions")
+                .insert({
+                    user_id: user.id,
+                    account_id: selectedAccountId,
+                    amount: transactionAmount,
+                    description: transactionDescription,
+                    date: new Date().toISOString().split("T")[0],
+                    is_recurring: false,
+                    goal_id: goal.id,
+                    // category_id can be null since it's a transfer to/from a goal
+                });
+
+            if (txError) throw txError;
 
             toast.success(action === "deposit" ? "Depósito realizado" : "Retiro realizado");
             setAction(null);
@@ -165,13 +214,33 @@ export default function GoalCard({ goal, currency = "EUR" }: GoalCardProps) {
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
+                            <Label>Cantidad (€)</Label>
                             <Input
                                 type="number"
-                                placeholder="Cantidad (€)"
+                                placeholder="0.00"
                                 value={amount}
                                 onChange={(e) => setAmount(e.target.value)}
                                 autoFocus
                             />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Desde cuenta</Label>
+                            <Select 
+                                value={selectedAccountId} 
+                                onValueChange={setSelectedAccountId}
+                                disabled={accounts.length === 1}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona una cuenta" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {accounts.map(acc => (
+                                        <SelectItem key={acc.id} value={acc.id}>
+                                            {acc.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
                     <DialogFooter>

@@ -10,17 +10,22 @@ export default async function GoalsPage() {
 
     if (!user) return null;
 
-    // Fetch user settings and goals in parallel
+    // Fetch user settings, goals, and accounts in parallel
     const [
         settings,
-        { data: goals }
+        { data: goals },
+        { data: accounts }
     ] = await Promise.all([
         getUserSettings(supabase, user.id),
         supabase
             .from("goals")
             .select("*")
             .eq("user_id", user.id)
-            .order("created_at", { ascending: false })
+            .order("created_at", { ascending: false }),
+        supabase
+            .from("accounts")
+            .select("*")
+            .eq("user_id", user.id)
     ]);
 
     const currency = settings?.currency || "EUR";
@@ -49,7 +54,7 @@ export default async function GoalsPage() {
             ) : (
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {goals.map((goal) => (
-                        <GoalCard key={goal.id} goal={goal} currency={currency} />
+                        <GoalCard key={goal.id} goal={goal} currency={currency} accounts={accounts ?? []} />
                     ))}
                 </div>
             )}

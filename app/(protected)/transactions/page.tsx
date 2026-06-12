@@ -24,7 +24,8 @@ export default async function TransactionsPage() {
                 *,
                 category:categories(*),
                 account:accounts(*),
-                receipts(*)
+                receipts(*),
+                goal:goals(*)
             `)
             .eq("user_id", user.id)
             .order("date", { ascending: false }),
