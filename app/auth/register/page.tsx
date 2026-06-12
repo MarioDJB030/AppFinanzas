@@ -35,7 +35,7 @@ export default function RegisterPage() {
         setLoading(true);
 
         try {
-            const { error } = await supabase.auth.signUp({
+            const { data, error } = await supabase.auth.signUp({
                 email,
                 password,
                 options: {
@@ -47,14 +47,28 @@ export default function RegisterPage() {
                 toast.error("Error al registrarse", {
                     description: error.message,
                 });
+            } else if (!data.user) {
+                toast.error("No se pudo crear la cuenta", {
+                    description: "Comprueba la configuración de Supabase Auth y las variables .env.local.",
+                });
             } else {
                 toast.success("¡Registro exitoso!", {
-                    description: "Revisa tu correo para confirmar tu cuenta.",
+                    description: data.session
+                        ? "Cuenta creada. Ya puedes iniciar sesión."
+                        : "Revisa tu correo para confirmar tu cuenta.",
                 });
                 router.push("/auth/login");
             }
-        } catch {
-            toast.error("Error inesperado");
+        } catch (err) {
+            const message =
+                err instanceof Error
+                    ? err.message
+                    : "Error de conexión con Supabase";
+            toast.error("Error de conexión", {
+                description: message.includes("variables de entorno")
+                    ? message
+                    : `${message}. Verifica .env.local, que el proyecto Supabase esté activo y que la URL de redirección ${window.location.origin}/auth/callback esté en Authentication → URL Configuration.`,
+            });
         } finally {
             setLoading(false);
         }
