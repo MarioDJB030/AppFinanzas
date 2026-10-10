@@ -67,7 +67,12 @@ export default async function TransactionsPage() {
             </div>
 
             {/* Transactions List */}
-            <TransactionsList transactions={transactions ?? []} accounts={accounts ?? []} currency={currency} />
+            <TransactionsList
+                transactions={transactions ?? []}
+                accounts={accounts ?? []}
+                categories={categories ?? []}
+                currency={currency}
+            />
         </div>
     );
 }

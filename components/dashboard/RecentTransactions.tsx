@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowUpRight, ArrowDownLeft, ArrowRight } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, ArrowRight, ArrowLeftRight } from "lucide-react";
 import type { Transaction } from "@/types/database";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -46,7 +46,8 @@ export default function RecentTransactions({ transactions, currency = "EUR" }: R
             <CardContent>
                 <div className="space-y-4">
                     {transactions.map((transaction) => {
-                        const isIncome = transaction.category?.type === "income";
+                        const isIncome = transaction.amount >= 0;
+                        const isTransfer = transaction.description?.toLowerCase().includes("transferencia");
                         const formattedAmount = new Intl.NumberFormat("es-ES", {
                             style: "currency",
                             currency: "EUR",
@@ -59,13 +60,20 @@ export default function RecentTransactions({ transactions, currency = "EUR" }: R
                             >
                                 <div className="flex items-center gap-3">
                                     <div
-                                        className={`p-2 rounded-lg ${isIncome ? "bg-emerald-500/10" : "bg-rose-500/10"
-                                            }`}
+                                        className={`p-2 rounded-lg ${
+                                            isTransfer
+                                                ? "bg-blue-500/10 text-blue-500"
+                                                : isIncome
+                                                ? "bg-emerald-500/10 text-emerald-500"
+                                                : "bg-rose-500/10 text-rose-500"
+                                        }`}
                                     >
-                                        {isIncome ? (
-                                            <ArrowDownLeft className="w-4 h-4 text-emerald-500" />
+                                        {isTransfer ? (
+                                            <ArrowLeftRight className="w-4 h-4" />
+                                        ) : isIncome ? (
+                                            <ArrowDownLeft className="w-4 h-4" />
                                         ) : (
-                                            <ArrowUpRight className="w-4 h-4 text-rose-500" />
+                                            <ArrowUpRight className="w-4 h-4" />
                                         )}
                                     </div>
                                     <div>
@@ -73,9 +81,19 @@ export default function RecentTransactions({ transactions, currency = "EUR" }: R
                                             {transaction.description || transaction.category?.name || "Sin descripción"}
                                         </p>
                                         <div className="flex items-center gap-2 mt-0.5">
-                                            <Badge variant="secondary" className="text-xs">
-                                                {transaction.category?.name || "Sin categoría"}
-                                            </Badge>
+                                            {transaction.category ? (
+                                                <Badge variant="secondary" className="text-xs">
+                                                    {transaction.category.name}
+                                                </Badge>
+                                            ) : isTransfer ? (
+                                                <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                                    Transferencia
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="secondary" className="text-xs">
+                                                    Sin categoría
+                                                </Badge>
+                                            )}
                                             <span className="text-xs text-muted-foreground">
                                                 {format(new Date(transaction.date), "d MMM", { locale: es })}
                                             </span>

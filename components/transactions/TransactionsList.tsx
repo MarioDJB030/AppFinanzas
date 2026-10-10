@@ -13,49 +13,87 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
     ArrowUpRight,
     ArrowDownLeft,
+    ArrowLeftRight,
     Search,
     Filter,
     Calendar,
     Wallet,
+    Trash2,
+    Paperclip,
+    Pencil,
+    Loader2,
 } from "lucide-react";
-import type { Transaction, Account } from "@/types/database";
+import type { Transaction, Account, Category, Receipt } from "@/types/database";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Trash2, Paperclip } from "lucide-react";
 import ReceiptDialog from "@/components/receipts/ReceiptDialog";
-import { type Receipt } from "@/types/database";
+import EditTransactionDialog from "@/components/transactions/EditTransactionDialog";
 
 interface TransactionsListProps {
     transactions: Transaction[];
     accounts: Account[];
+    categories?: Category[];
     currency?: string;
 }
 
-export default function TransactionsList({ transactions, accounts, currency = "EUR" }: TransactionsListProps) {
+export default function TransactionsList({
+    transactions,
+    accounts,
+    categories = [],
+    currency = "EUR",
+}: TransactionsListProps) {
     const [search, setSearch] = useState("");
-    const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense">("all");
+    const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "transfer">("all");
     const [dateRange, setDateRange] = useState<"all" | "today" | "week" | "month">("all");
     const [accountFilter, setAccountFilter] = useState<string>("all");
 
+    // Modal states
+    const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+    const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
+    const [isDeletingSingle, setIsDeletingSingle] = useState(false);
+    const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+    const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
+    const [isSelectionMode, setIsSelectionMode] = useState(false);
+
+    const supabase = createClient();
+    const router = useRouter();
+
     // Filter transactions
     const filteredTransactions = transactions.filter((t) => {
+        const isTransfer = Boolean(t.description?.toLowerCase().includes("transferencia"));
+
         // Search filter
         const searchMatch =
             search === "" ||
-            t.description?.toLowerCase().includes(search.toLowerCase()) ||
-            t.category?.name.toLowerCase().includes(search.toLowerCase());
+            Boolean(t.description?.toLowerCase().includes(search.toLowerCase())) ||
+            Boolean(t.category?.name.toLowerCase().includes(search.toLowerCase())) ||
+            Boolean(t.account?.name.toLowerCase().includes(search.toLowerCase()));
 
         // Type filter
-        const typeMatch =
-            typeFilter === "all" ||
-            (typeFilter === "income" && t.amount >= 0) ||
-            (typeFilter === "expense" && t.amount < 0);
+        let typeMatch = true;
+        if (typeFilter === "income") {
+            typeMatch = t.amount >= 0;
+        } else if (typeFilter === "expense") {
+            typeMatch = t.amount < 0;
+        } else if (typeFilter === "transfer") {
+            typeMatch = isTransfer;
+        }
 
         // Date filter
         let dateMatch = true;
@@ -101,12 +139,6 @@ export default function TransactionsList({ transactions, accounts, currency = "E
         {} as Record<string, Transaction[]>
     );
 
-    const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-    const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
-    const [isSelectionMode, setIsSelectionMode] = useState(false);
-    const supabase = createClient();
-    const router = useRouter();
-
     // Toggle selection of a transaction
     const toggleSelection = (id: string) => {
         const newSelected = new Set(selectedItems);
@@ -116,11 +148,6 @@ export default function TransactionsList({ transactions, accounts, currency = "E
             newSelected.add(id);
         }
         setSelectedItems(newSelected);
-
-        // Auto-exit selection mode if empty (optional, but keeps UI clean)
-        if (newSelected.size === 0 && isSelectionMode) {
-            // Optional: setIsSelectionMode(false); 
-        }
     };
 
     // Toggle all visible transactions
@@ -128,13 +155,13 @@ export default function TransactionsList({ transactions, accounts, currency = "E
         if (selectedItems.size === filteredTransactions.length) {
             setSelectedItems(new Set());
         } else {
-            const allIds = new Set(filteredTransactions.map(t => t.id));
+            const allIds = new Set(filteredTransactions.map((t) => t.id));
             setSelectedItems(allIds);
         }
     };
 
-    // Handle delete
-    const handleDelete = async () => {
+    // Handle bulk delete
+    const handleBulkDelete = async () => {
         if (!confirm(`¿Estás seguro de que quieres eliminar ${selectedItems.size} transacciones?`)) return;
 
         try {
@@ -155,10 +182,29 @@ export default function TransactionsList({ transactions, accounts, currency = "E
         }
     };
 
-    // Handle long press (simplified as click for now, user asked for "holding it down" but a toggle button is often better for web)
-    // We will add a button to enter "Selection Mode"
+    // Handle single direct delete
+    const handleConfirmSingleDelete = async () => {
+        if (!transactionToDelete) return;
 
-    // ... existing filter logic ...
+        setIsDeletingSingle(true);
+        try {
+            const { error } = await supabase
+                .from("transactions")
+                .delete()
+                .eq("id", transactionToDelete.id);
+
+            if (error) throw error;
+
+            toast.success("Transacción eliminada correctamente");
+            setTransactionToDelete(null);
+            router.refresh();
+        } catch (error) {
+            toast.error("Error al eliminar la transacción");
+            console.error(error);
+        } finally {
+            setIsDeletingSingle(false);
+        }
+    };
 
     return (
         <Card>
@@ -166,7 +212,7 @@ export default function TransactionsList({ transactions, accounts, currency = "E
                 <div className="flex flex-col sm:flex-row gap-4 justify-between">
                     <CardTitle className="flex items-center gap-2">
                         <Calendar className="w-5 h-5 text-muted-foreground" />
-                        Historial
+                        Historial de Transacciones
                     </CardTitle>
 
                     {/* Action Bar */}
@@ -175,7 +221,7 @@ export default function TransactionsList({ transactions, accounts, currency = "E
                             <Button
                                 variant="destructive"
                                 size="sm"
-                                onClick={handleDelete}
+                                onClick={handleBulkDelete}
                                 className="mr-2"
                             >
                                 <Trash2 className="w-4 h-4 mr-2" />
@@ -198,15 +244,13 @@ export default function TransactionsList({ transactions, accounts, currency = "E
                         <div className="relative flex-1 min-w-[200px]">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                             <Input
-                                placeholder="Buscar..."
+                                placeholder="Buscar transacción..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 className="pl-9"
                             />
                         </div>
 
-                        {/* Filters ... */}
-                        {/* Keep existing filters here, just truncated for brevity in replace block if possible, but safe to include all if needed context */}
                         {/* Type Filter */}
                         <Select
                             value={typeFilter}
@@ -220,6 +264,7 @@ export default function TransactionsList({ transactions, accounts, currency = "E
                                 <SelectItem value="all">Todos</SelectItem>
                                 <SelectItem value="income">Ingresos</SelectItem>
                                 <SelectItem value="expense">Gastos</SelectItem>
+                                <SelectItem value="transfer">Transferencias</SelectItem>
                             </SelectContent>
                         </Select>
 
@@ -233,10 +278,10 @@ export default function TransactionsList({ transactions, accounts, currency = "E
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">Todo</SelectItem>
+                                <SelectItem value="all">Todo el tiempo</SelectItem>
                                 <SelectItem value="today">Hoy</SelectItem>
-                                <SelectItem value="week">Semana</SelectItem>
-                                <SelectItem value="month">Mes</SelectItem>
+                                <SelectItem value="week">Última semana</SelectItem>
+                                <SelectItem value="month">Último mes</SelectItem>
                             </SelectContent>
                         </Select>
 
@@ -271,15 +316,15 @@ export default function TransactionsList({ transactions, accounts, currency = "E
                     <div className="space-y-6">
                         {Object.entries(groupedTransactions)
                             .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
-                            .map(([date, transactions]) => (
+                            .map(([date, groupList]) => (
                                 <div key={date}>
                                     <h3 className="text-sm font-medium text-muted-foreground mb-3">
                                         {format(new Date(date), "EEEE, d 'de' MMMM", { locale: es })}
                                     </h3>
                                     <div className="space-y-2">
-                                        {transactions.map((transaction) => {
-                                            // CORRECTED LOGIC: Use amount sign, not category type
+                                        {groupList.map((transaction) => {
                                             const isIncome = transaction.amount >= 0;
+                                            const isTransfer = Boolean(transaction.description?.toLowerCase().includes("transferencia"));
                                             const formattedAmount = new Intl.NumberFormat("es-ES", {
                                                 style: "currency",
                                                 currency: currency,
@@ -288,12 +333,17 @@ export default function TransactionsList({ transactions, accounts, currency = "E
                                             return (
                                                 <div
                                                     key={transaction.id}
-                                                    className={`flex items-center justify-between p-4 rounded-xl transition-colors cursor-pointer ${selectedItems.has(transaction.id)
-                                                        ? "bg-primary/10 border-primary border"
-                                                        : "bg-accent/30 hover:bg-accent/50"
-                                                        }`}
+                                                    className={`group flex items-center justify-between p-3.5 sm:p-4 rounded-xl transition-all cursor-pointer ${
+                                                        selectedItems.has(transaction.id)
+                                                            ? "bg-primary/10 border-primary border"
+                                                            : "bg-accent/30 hover:bg-accent/60 border border-transparent hover:border-border"
+                                                    }`}
                                                     onClick={() => {
-                                                        if (isSelectionMode) toggleSelection(transaction.id);
+                                                        if (isSelectionMode) {
+                                                            toggleSelection(transaction.id);
+                                                        } else {
+                                                            setEditingTransaction(transaction);
+                                                        }
                                                     }}
                                                     onContextMenu={(e) => {
                                                         e.preventDefault();
@@ -303,7 +353,7 @@ export default function TransactionsList({ transactions, accounts, currency = "E
                                                         }
                                                     }}
                                                 >
-                                                    <div className="flex items-center gap-3">
+                                                    <div className="flex items-center gap-3 min-w-0">
                                                         {isSelectionMode && (
                                                             <Checkbox
                                                                 checked={selectedItems.has(transaction.id)}
@@ -311,25 +361,34 @@ export default function TransactionsList({ transactions, accounts, currency = "E
                                                             />
                                                         )}
                                                         <div
-                                                            className={`p-2 rounded-lg ${isIncome ? "bg-emerald-500/10" : "bg-rose-500/10"
-                                                                }`}
+                                                            className={`p-2.5 rounded-xl shrink-0 ${
+                                                                isTransfer
+                                                                    ? "bg-blue-500/10 text-blue-500"
+                                                                    : isIncome
+                                                                    ? "bg-emerald-500/10 text-emerald-500"
+                                                                    : "bg-rose-500/10 text-rose-500"
+                                                            }`}
                                                         >
-                                                            {isIncome ? (
-                                                                <ArrowDownLeft className="w-5 h-5 text-emerald-500" />
+                                                            {isTransfer ? (
+                                                                <ArrowLeftRight className="w-5 h-5" />
+                                                            ) : isIncome ? (
+                                                                <ArrowDownLeft className="w-5 h-5" />
                                                             ) : (
-                                                                <ArrowUpRight className="w-5 h-5 text-rose-500" />
+                                                                <ArrowUpRight className="w-5 h-5" />
                                                             )}
                                                         </div>
-                                                        <div>
-                                                            <p className="font-medium flex items-center gap-2">
-                                                                {transaction.description ||
-                                                                    transaction.category?.name ||
-                                                                    "Sin descripción"}
+                                                        <div className="min-w-0">
+                                                            <p className="font-medium text-sm sm:text-base flex items-center gap-2 truncate">
+                                                                <span className="truncate">
+                                                                    {transaction.description ||
+                                                                        transaction.category?.name ||
+                                                                        "Sin descripción"}
+                                                                </span>
                                                                 {transaction.receipts && transaction.receipts.length > 0 && (
                                                                     <Button
                                                                         variant="ghost"
                                                                         size="icon"
-                                                                        className="h-6 w-6 text-muted-foreground hover:text-primary"
+                                                                        className="h-6 w-6 text-muted-foreground hover:text-primary shrink-0"
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
                                                                             if (transaction.receipts && transaction.receipts.length > 0) {
@@ -337,22 +396,37 @@ export default function TransactionsList({ transactions, accounts, currency = "E
                                                                             }
                                                                         }}
                                                                     >
-                                                                        <Paperclip className="w-3 h-3" />
+                                                                        <Paperclip className="w-3.5 h-3.5" />
                                                                     </Button>
                                                                 )}
                                                             </p>
-                                                            <div className="flex items-center gap-2 mt-1">
-                                                                <Badge variant="secondary" className="text-xs">
-                                                                    {transaction.category?.name || "Sin categoría"}
-                                                                </Badge>
-                                                                <span className="text-xs text-muted-foreground">
+                                                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1">
+                                                                {transaction.category ? (
+                                                                    <Badge variant="secondary" className="text-xs">
+                                                                        {transaction.category.icon ? `${transaction.category.icon} ` : ""}
+                                                                        {transaction.category.name}
+                                                                    </Badge>
+                                                                ) : isTransfer ? (
+                                                                    <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                                                        <ArrowLeftRight className="w-3 h-3 mr-1 inline" />
+                                                                        Transferencia
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <Badge variant="secondary" className="text-xs">
+                                                                        Sin categoría
+                                                                    </Badge>
+                                                                )}
+
+                                                                <span className="text-xs text-muted-foreground font-medium">
                                                                     {transaction.account?.name}
                                                                 </span>
+
                                                                 {transaction.is_recurring && (
                                                                     <Badge variant="outline" className="text-xs">
                                                                         Recurrente
                                                                     </Badge>
                                                                 )}
+
                                                                 {transaction.goal && (
                                                                     <Badge variant="outline" className="text-xs border-primary/50 text-primary">
                                                                         {transaction.goal.icon} {transaction.goal.name}
@@ -361,12 +435,47 @@ export default function TransactionsList({ transactions, accounts, currency = "E
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <span
-                                                        className={`font-semibold text-lg ${isIncome ? "text-emerald-500" : "text-rose-500"
+
+                                                    {/* Amount and direct action buttons */}
+                                                    <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-3">
+                                                        <span
+                                                            className={`font-bold text-base sm:text-lg ${
+                                                                isIncome ? "text-emerald-500" : "text-rose-500"
                                                             }`}
-                                                    >
-                                                        {isIncome ? "+" : "-"}{formattedAmount}
-                                                    </span>
+                                                        >
+                                                            {isIncome ? "+" : "-"}{formattedAmount}
+                                                        </span>
+
+                                                        {/* Direct action buttons (edit and delete) */}
+                                                        {!isSelectionMode && (
+                                                            <div className="flex items-center gap-0.5 sm:gap-1">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-background/80"
+                                                                    title="Modificar transacción"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setEditingTransaction(transaction);
+                                                                    }}
+                                                                >
+                                                                    <Pencil className="w-3.5 h-3.5" />
+                                                                </Button>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                                                    title="Borrar transacción"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setTransactionToDelete(transaction);
+                                                                    }}
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </Button>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             );
                                         })}
@@ -377,6 +486,49 @@ export default function TransactionsList({ transactions, accounts, currency = "E
                 )}
             </CardContent>
 
+            {/* Edit Transaction Dialog */}
+            <EditTransactionDialog
+                transaction={editingTransaction}
+                open={!!editingTransaction}
+                onOpenChange={(open) => !open && setEditingTransaction(null)}
+                accounts={accounts}
+                categories={categories}
+            />
+
+            {/* Quick single-delete confirmation dialog */}
+            <AlertDialog
+                open={!!transactionToDelete}
+                onOpenChange={(open) => !open && setTransactionToDelete(null)}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar esta transacción?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción eliminará el registro seleccionado permanentemente y recalculará
+                            el balance de tu cuenta.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeletingSingle}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleConfirmSingleDelete}
+                            disabled={isDeletingSingle}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            {isDeletingSingle ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Eliminando...
+                                </>
+                            ) : (
+                                "Eliminar"
+                            )}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Receipt Dialog */}
             <ReceiptDialog
                 receipt={selectedReceipt}
                 open={!!selectedReceipt}
