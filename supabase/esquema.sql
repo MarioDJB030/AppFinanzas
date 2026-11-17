@@ -46,30 +46,36 @@ CREATE TABLE public.accounts (
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Categorías de ingresos y gastos
+-- Categorías unificadas (sirven para ingresos y gastos)
 CREATE TABLE public.categories (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id     UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
     name        TEXT NOT NULL,
-    type        TEXT NOT NULL
-        CHECK (type IN ('income', 'expense')),
+    type        TEXT NOT NULL DEFAULT 'both'
+        CHECK (type IN ('income', 'expense', 'both')),
     icon        TEXT NOT NULL DEFAULT '📦',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Transacciones (ingresos y gastos; gastos en negativo)
+-- kind: income | expense | transfer | adjustment
 CREATE TABLE public.transactions (
-    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id             UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
-    account_id          UUID NOT NULL REFERENCES public.accounts (id) ON DELETE CASCADE,
-    category_id         UUID REFERENCES public.categories (id) ON DELETE SET NULL,
-    amount              NUMERIC(15, 2) NOT NULL,
-    description         TEXT,
-    date                DATE NOT NULL,
-    is_recurring        BOOLEAN NOT NULL DEFAULT FALSE,
-    recurring_rule_id   UUID,  -- FK añadida tras crear recurring_rules
-    goal_id             UUID REFERENCES public.goals (id) ON DELETE SET NULL,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id                 UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+    account_id              UUID NOT NULL REFERENCES public.accounts (id) ON DELETE CASCADE,
+    category_id             UUID REFERENCES public.categories (id) ON DELETE SET NULL,
+    amount                  NUMERIC(15, 2) NOT NULL,
+    description             TEXT,
+    date                    DATE NOT NULL,
+    is_recurring            BOOLEAN NOT NULL DEFAULT FALSE,
+    recurring_rule_id       UUID,  -- FK añadida tras crear recurring_rules
+    goal_id                 UUID REFERENCES public.goals (id) ON DELETE SET NULL,
+    kind                    TEXT NOT NULL
+        CHECK (kind IN ('income', 'expense', 'transfer', 'adjustment')),
+    linked_transaction_id   UUID REFERENCES public.transactions (id) ON DELETE SET NULL,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT transactions_linked_not_self
+        CHECK (linked_transaction_id IS DISTINCT FROM id)
 );
 
 -- Reglas de pagos recurrentes
@@ -171,6 +177,11 @@ CREATE INDEX idx_transactions_user_id       ON public.transactions (user_id);
 CREATE INDEX idx_transactions_account_id    ON public.transactions (account_id);
 CREATE INDEX idx_transactions_category_id   ON public.transactions (category_id);
 CREATE INDEX idx_transactions_date          ON public.transactions (date DESC);
+CREATE INDEX idx_transactions_kind          ON public.transactions (user_id, kind);
+CREATE INDEX idx_transactions_linked        ON public.transactions (linked_transaction_id)
+    WHERE linked_transaction_id IS NOT NULL;
+CREATE UNIQUE INDEX categories_user_id_lower_name_uidx
+    ON public.categories (user_id, lower(trim(name)));
 CREATE INDEX idx_transactions_recurring     ON public.transactions (recurring_rule_id)
     WHERE recurring_rule_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_recurring_rules_user_id    ON public.recurring_rules (user_id);
