@@ -9,6 +9,7 @@ import DashboardGoal from "@/components/dashboard/DashboardGoal";
 import QuickActions from "@/components/dashboard/QuickActions";
 import AiAdvisor from "@/components/dashboard/AiAdvisor";
 import { getUserSettings } from "@/actions/settings";
+import { countsInStats } from "@/utils/transactionKind";
 
 export default async function DashboardPage() {
     const { supabase, user } = await createClientWithUser();
@@ -41,47 +42,43 @@ export default async function DashboardPage() {
 
     const currency = settings?.currency || "EUR";
 
-    // Calculate totals
-    const totalAccountBalance = accounts?.reduce(
-        (sum, acc) => sum + (acc.initial_balance || 0),
-        0
-    ) ?? 0;
+    const allTransactions = transactions ?? [];
+    const statTransactions = allTransactions.filter(countsInStats);
 
-    const incomeTransactions = transactions?.filter(
-        (t) => t.category?.type === "income"
-    ) ?? [];
-    const expenseTransactions = transactions?.filter(
-        (t) => t.category?.type === "expense"
-    ) ?? [];
+    const totalBalance = (accounts ?? []).reduce((sum, acc) => {
+        const txs = allTransactions.filter((t) => t.account_id === acc.id);
+        const txsTotal = txs.reduce((s, t) => s + (t.amount || 0), 0);
+        return sum + (acc.initial_balance || 0) + txsTotal;
+    }, 0);
 
-    const totalIncome = incomeTransactions.reduce(
-        (sum, t) => sum + Math.abs(t.amount || 0),
-        0
-    );
-    const totalExpenses = expenseTransactions.reduce(
-        (sum, t) => sum + Math.abs(t.amount || 0),
-        0
-    );
+    const totalIncome = statTransactions
+        .filter((t) => (t.amount || 0) > 0)
+        .reduce((sum, t) => sum + (t.amount || 0), 0);
+    const totalExpenses = statTransactions
+        .filter((t) => (t.amount || 0) < 0)
+        .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-    const totalBalance = totalAccountBalance + totalIncome - totalExpenses;
-
-    // Calculate expenses by category for chart
-    const expensesByCategory: Record<string, { name: string; icon: string; amount: number }> = {};
-    expenseTransactions.forEach((t) => {
-        const catId = t.category_id;
+    // Gasto neto por categoría (un reembolso resta al gasto de esa categoría)
+    const expensesByCategory: Record<string, { id: string; name: string; icon: string; amount: number }> = {};
+    statTransactions.forEach((t) => {
+        const catId = t.category_id || "uncategorized";
         const catName = t.category?.name || "Sin categoría";
-        const catIcon = t.category?.icon || "circle";
+        const catIcon = t.category?.icon || "📦";
         if (!expensesByCategory[catId]) {
-            expensesByCategory[catId] = { name: catName, icon: catIcon, amount: 0 };
+            expensesByCategory[catId] = { id: catId, name: catName, icon: catIcon, amount: 0 };
         }
-        expensesByCategory[catId].amount += Math.abs(t.amount || 0);
+        expensesByCategory[catId].amount += -(t.amount || 0);
     });
 
-    const chartData = Object.entries(expensesByCategory).map(([, value]) => ({
+    const netPositive = Object.values(expensesByCategory).filter((value) => value.amount > 0);
+    const netTotal = netPositive.reduce((sum, value) => sum + value.amount, 0);
+
+    const chartData = netPositive.map((value) => ({
+        categoryId: value.id,
         category: value.name,
         icon: value.icon,
         amount: value.amount,
-        percentage: totalExpenses > 0 ? (value.amount / totalExpenses) * 100 : 0,
+        percentage: netTotal > 0 ? (value.amount / netTotal) * 100 : 0,
     }));
 
     // Recent transactions (last 5)
@@ -133,7 +130,7 @@ export default async function DashboardPage() {
 
             {/* Row 4: Analysis */}
             <div className="grid gap-6 md:grid-cols-2">
-                <ExpensesChart data={chartData} totalExpenses={totalExpenses} currency={currency} />
+                <ExpensesChart data={chartData} totalExpenses={netTotal} currency={currency} />
                 <RecentTransactions transactions={recentTransactions} currency={currency} />
             </div>
 

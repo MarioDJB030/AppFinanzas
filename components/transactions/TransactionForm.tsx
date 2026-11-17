@@ -26,6 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Loader2, ArrowDownLeft, ArrowUpRight, ArrowLeftRight } from "lucide-react";
 import { toast } from "sonner";
 import type { Account, Category } from "@/types/database";
+import { insertLinkedTransfer, kindFromAmount } from "@/utils/transactionKind";
 
 interface TransactionFormProps {
     accounts: Account[];
@@ -46,7 +47,9 @@ export default function TransactionForm({ accounts, categories }: TransactionFor
     const router = useRouter();
     const supabase = createClient();
 
-    const filteredCategories = categories.filter((cat) => cat.type === type);
+    const sortedCategories = [...categories].sort((a, b) =>
+        a.name.localeCompare(b.name, "es")
+    );
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -95,39 +98,28 @@ export default function TransactionForm({ accounts, categories }: TransactionFor
                     : `Transferencia desde ${originName}`;
 
                 // Insert 2 transactions: expense in origin and income in destination
-                const { error } = await supabase.from("transactions").insert([
-                    {
-                        user_id: user.id,
-                        account_id: accountId,
-                        category_id: null,
-                        amount: -Math.abs(parsedAmount),
-                        description: originDesc,
-                        date,
-                        is_recurring: false,
-                    },
-                    {
-                        user_id: user.id,
-                        account_id: toAccountId,
-                        category_id: null,
-                        amount: Math.abs(parsedAmount),
-                        description: destDesc,
-                        date,
-                        is_recurring: false,
-                    },
-                ]);
-
-                if (error) throw error;
+                await insertLinkedTransfer(supabase, {
+                    userId: user.id,
+                    fromAccountId: accountId,
+                    toAccountId,
+                    amount: parsedAmount,
+                    date,
+                    originDescription: originDesc,
+                    destDescription: destDesc,
+                });
 
                 toast.success("Transferencia realizada con éxito");
             } else {
+                const signedAmount = type === "expense" ? -Math.abs(parsedAmount) : Math.abs(parsedAmount);
                 const { error } = await supabase.from("transactions").insert({
                     user_id: user.id,
                     account_id: accountId,
                     category_id: categoryId || null,
-                    amount: type === "expense" ? -Math.abs(parsedAmount) : Math.abs(parsedAmount),
+                    amount: signedAmount,
                     description: description.trim() || null,
                     date,
                     is_recurring: false,
+                    kind: kindFromAmount(signedAmount),
                 });
 
                 if (error) throw error;
@@ -244,7 +236,7 @@ export default function TransactionForm({ accounts, categories }: TransactionFor
                                                 <SelectValue placeholder="Seleccionar categoría" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {filteredCategories.map((category) => (
+                                                {sortedCategories.map((category) => (
                                                     <SelectItem key={category.id} value={category.id}>
                                                         {category.icon ? `${category.icon} ` : ""}{category.name}
                                                     </SelectItem>

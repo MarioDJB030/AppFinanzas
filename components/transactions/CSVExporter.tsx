@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import Papa from "papaparse";
 import { format } from "date-fns";
 import type { Account, Category, Transaction } from "@/types/database";
+import { getTransactionKind } from "@/utils/transactionKind";
 
 interface CSVExporterProps {
     transactions: Transaction[];
@@ -85,13 +86,20 @@ export default function CSVExporter({ transactions, accounts, categories }: CSVE
                 }
 
                 // Map to CSV format
+                const kindLabels = {
+                    income: "Ingreso",
+                    expense: "Gasto",
+                    transfer: "Transferencia",
+                    adjustment: "Ajuste",
+                } as const;
+
                 const csvData = filteredData.map(t => ({
                     Fecha: t.date,
                     Descripción: t.description || "",
                     Cantidad: t.amount,
                     Categoría: t.category?.name || "Sin categoría",
                     Cuenta: accounts.find(a => a.id === t.account_id)?.name || "Cuenta desconocida",
-                    Tipo: t.amount >= 0 ? "Ingreso" : "Gasto"
+                    Tipo: kindLabels[getTransactionKind(t)],
                 }));
 
                 // Generate CSV

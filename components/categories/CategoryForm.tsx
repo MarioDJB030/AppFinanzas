@@ -45,21 +45,18 @@ const ICONS = [
 ];
 
 interface CategoryFormProps {
-    type?: "income" | "expense";
     variant?: "default" | "outline" | "ghost";
     size?: "default" | "sm" | "lg" | "icon";
     showIcon?: boolean;
 }
 
 export default function CategoryForm({
-    type: initialType,
     variant = "outline",
     size = "sm",
     showIcon = true
 }: CategoryFormProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [name, setName] = useState("");
-    const [type, setType] = useState<"income" | "expense">(initialType || "expense");
     const [icon, setIcon] = useState("📦");
     const [loading, setLoading] = useState(false);
 
@@ -76,8 +73,8 @@ export default function CategoryForm({
 
             const { error } = await supabase.from("categories").insert({
                 user_id: user.id,
-                name,
-                type,
+                name: name.trim(),
+                type: "both",
                 icon,
             });
 
@@ -97,7 +94,6 @@ export default function CategoryForm({
 
     const resetForm = () => {
         setName("");
-        setType(initialType || "expense");
         setIcon("📦");
     };
 
@@ -133,26 +129,8 @@ export default function CategoryForm({
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label>Tipo</Label>
-                                <Select
-                                    value={type}
-                                    onValueChange={(v) => setType(v as "income" | "expense")}
-                                    disabled={!!initialType}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="expense">Gasto</SelectItem>
-                                        <SelectItem value="income">Ingreso</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Icono</Label>
+                        <div className="space-y-2">
+                            <Label>Icono</Label>
                                 <Select value={icon} onValueChange={setIcon}>
                                     <SelectTrigger>
                                         <SelectValue />
@@ -165,7 +143,6 @@ export default function CategoryForm({
                                         ))}
                                     </SelectContent>
                                 </Select>
-                            </div>
                         </div>
                     </div>
 

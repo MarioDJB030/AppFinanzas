@@ -106,6 +106,7 @@ export async function checkForRecurringPayments(
                                 date: currentDueDate.toISOString().split("T")[0],
                                 is_recurring: true,
                                 recurring_rule_id: rule.id,
+                                kind: splitAmount >= 0 ? "income" : "expense",
                             });
 
                             if (insertError) {
@@ -123,6 +124,7 @@ export async function checkForRecurringPayments(
                             date: currentDueDate.toISOString().split("T")[0],
                             is_recurring: true,
                             recurring_rule_id: rule.id,
+                            kind: rule.amount >= 0 ? "income" : "expense",
                         });
 
                         if (insertError) {

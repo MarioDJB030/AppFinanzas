@@ -8,6 +8,7 @@ import { ArrowUpRight, ArrowDownLeft, ArrowRight, ArrowLeftRight } from "lucide-
 import type { Transaction } from "@/types/database";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { getTransactionKind } from "@/utils/transactionKind";
 
 interface RecentTransactionsProps {
     transactions: any[];
@@ -46,8 +47,10 @@ export default function RecentTransactions({ transactions, currency = "EUR" }: R
             <CardContent>
                 <div className="space-y-4">
                     {transactions.map((transaction) => {
+                        const kind = getTransactionKind(transaction);
                         const isIncome = transaction.amount >= 0;
-                        const isTransfer = transaction.description?.toLowerCase().includes("transferencia");
+                        const isTransfer = kind === "transfer";
+                        const isAdjustment = kind === "adjustment";
                         const formattedAmount = new Intl.NumberFormat("es-ES", {
                             style: "currency",
                             currency: "EUR",
@@ -61,14 +64,14 @@ export default function RecentTransactions({ transactions, currency = "EUR" }: R
                                 <div className="flex items-center gap-3">
                                     <div
                                         className={`p-2 rounded-lg ${
-                                            isTransfer
+                                            isTransfer || isAdjustment
                                                 ? "bg-blue-500/10 text-blue-500"
                                                 : isIncome
                                                 ? "bg-emerald-500/10 text-emerald-500"
                                                 : "bg-rose-500/10 text-rose-500"
                                         }`}
                                     >
-                                        {isTransfer ? (
+                                        {isTransfer || isAdjustment ? (
                                             <ArrowLeftRight className="w-4 h-4" />
                                         ) : isIncome ? (
                                             <ArrowDownLeft className="w-4 h-4" />
@@ -88,6 +91,10 @@ export default function RecentTransactions({ transactions, currency = "EUR" }: R
                                             ) : isTransfer ? (
                                                 <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/20">
                                                     Transferencia
+                                                </Badge>
+                                            ) : isAdjustment ? (
+                                                <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/20">
+                                                    Reconciliar
                                                 </Badge>
                                             ) : (
                                                 <Badge variant="secondary" className="text-xs">

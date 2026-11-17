@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { createClientWithUser } from "@/utils/supabase/server";
 import TransactionsList from "@/components/transactions/TransactionsList";
 import TransactionForm from "@/components/transactions/TransactionForm";
@@ -66,13 +67,14 @@ export default async function TransactionsPage() {
                 </div>
             </div>
 
-            {/* Transactions List */}
-            <TransactionsList
-                transactions={transactions ?? []}
-                accounts={accounts ?? []}
-                categories={categories ?? []}
-                currency={currency}
-            />
+            <Suspense>
+                <TransactionsList
+                    transactions={transactions ?? []}
+                    accounts={accounts ?? []}
+                    categories={categories ?? []}
+                    currency={currency}
+                />
+            </Suspense>
         </div>
     );
 }

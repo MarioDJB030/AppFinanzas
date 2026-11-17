@@ -63,7 +63,9 @@ export default function RecurringRuleForm({ accounts, categories }: RecurringRul
     const router = useRouter();
     const supabase = createClient();
 
-    const filteredCategories = categories.filter((cat) => cat.type === type);
+    const sortedCategories = [...categories].sort((a, b) =>
+        a.name.localeCompare(b.name, "es")
+    );
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -248,7 +250,7 @@ export default function RecurringRuleForm({ accounts, categories }: RecurringRul
                                         <SelectValue placeholder="Seleccionar" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {filteredCategories.map((category) => (
+                                        {sortedCategories.map((category) => (
                                             <SelectItem key={category.id} value={category.id}>
                                                 {category.name}
                                             </SelectItem>

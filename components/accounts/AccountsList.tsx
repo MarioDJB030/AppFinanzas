@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,13 +16,14 @@ import {
     MoreVertical,
     Trash2,
     Wallet,
-    CreditCard,
     PiggyBank,
     Banknote,
     TrendingUp,
+    Scale,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Account } from "@/types/database";
+import ReconcileBalanceDialog from "@/components/accounts/ReconcileBalanceDialog";
 
 interface AccountWithBalance extends Account {
     currentBalance: number;
@@ -60,6 +62,7 @@ const typeConfig: Record<
 export default function AccountsList({ accounts }: AccountsListProps) {
     const router = useRouter();
     const supabase = createClient();
+    const [reconcileAccount, setReconcileAccount] = useState<AccountWithBalance | null>(null);
 
     const handleDelete = async (accountId: string) => {
         try {
@@ -136,6 +139,10 @@ export default function AccountsList({ accounts }: AccountsListProps) {
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => setReconcileAccount(account)}>
+                                                <Scale className="w-4 h-4 mr-2" />
+                                                Cuadrar saldo
+                                            </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 onClick={() => handleDelete(account.id)}
                                                 className="text-destructive"
@@ -164,6 +171,12 @@ export default function AccountsList({ accounts }: AccountsListProps) {
                     })}
                 </div>
             </CardContent>
+            <ReconcileBalanceDialog
+                account={reconcileAccount}
+                currentBalance={reconcileAccount?.currentBalance ?? 0}
+                open={!!reconcileAccount}
+                onOpenChange={(open) => !open && setReconcileAccount(null)}
+            />
         </Card>
     );
 }

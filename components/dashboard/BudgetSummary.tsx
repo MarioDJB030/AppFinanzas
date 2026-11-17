@@ -22,8 +22,9 @@ export default function BudgetSummary({ currency = "EUR", budgets, transactions 
     // but assuming transactions passed are for the period or we filter them here.
     // For simplicity, let's filter the transactions passed to those in the current month.
     
-    const expenses = transactions?.filter((tx: any) => 
-        tx.category?.type === 'expense' && 
+    const expenses = transactions?.filter((tx: any) =>
+        tx.kind !== "transfer" &&
+        tx.kind !== "adjustment" &&
         tx.date >= startOfMonth
     ) || [];
 
@@ -33,13 +34,13 @@ export default function BudgetSummary({ currency = "EUR", budgets, transactions 
     expenses.forEach((tx) => {
         if (tx.category_id) {
             const current = spendingMap.get(tx.category_id) || 0;
-            spendingMap.set(tx.category_id, current + Math.abs(Number(tx.amount)));
+            spendingMap.set(tx.category_id, current + -Number(tx.amount));
         }
     });
 
     // 3. Process and Sort
     const budgetItems = (budgets as Budget[]).map((budget) => {
-        const spent = spendingMap.get(budget.category_id) || 0;
+        const spent = Math.max(0, spendingMap.get(budget.category_id) || 0);
         const limit = budget.amount_limit;
         const percentage = (spent / limit) * 100;
 

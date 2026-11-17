@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,7 @@ import {
     Filter,
     Calendar,
     Wallet,
+    Tag,
     Trash2,
     Paperclip,
     Pencil,
@@ -39,7 +40,8 @@ import type { Transaction, Account, Category, Receipt } from "@/types/database";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { createClient } from "@/utils/supabase/client";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { collectDeleteIds, getTransactionKind } from "@/utils/transactionKind";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import ReceiptDialog from "@/components/receipts/ReceiptDialog";
@@ -59,9 +61,28 @@ export default function TransactionsList({
     currency = "EUR",
 }: TransactionsListProps) {
     const [search, setSearch] = useState("");
-    const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "transfer">("all");
+    const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "transfer" | "adjustment">("all");
     const [dateRange, setDateRange] = useState<"all" | "today" | "week" | "month">("all");
     const [accountFilter, setAccountFilter] = useState<string>("all");
+    const searchParams = useSearchParams();
+    const pathname = usePathname();
+    const [categoryFilter, setCategoryFilter] = useState(searchParams.get("category") || "all");
+
+    useEffect(() => {
+        setCategoryFilter(searchParams.get("category") || "all");
+    }, [searchParams]);
+
+    const handleCategoryChange = (value: string) => {
+        setCategoryFilter(value);
+        const params = new URLSearchParams(searchParams.toString());
+        if (value === "all") {
+            params.delete("category");
+        } else {
+            params.set("category", value);
+        }
+        const query = params.toString();
+        router.replace(query ? `${pathname}?${query}` : pathname);
+    };
 
     // Modal states
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -76,7 +97,7 @@ export default function TransactionsList({
 
     // Filter transactions
     const filteredTransactions = transactions.filter((t) => {
-        const isTransfer = Boolean(t.description?.toLowerCase().includes("transferencia"));
+        const kind = getTransactionKind(t);
 
         // Search filter
         const searchMatch =
@@ -88,11 +109,13 @@ export default function TransactionsList({
         // Type filter
         let typeMatch = true;
         if (typeFilter === "income") {
-            typeMatch = t.amount >= 0;
+            typeMatch = kind === "income";
         } else if (typeFilter === "expense") {
-            typeMatch = t.amount < 0;
+            typeMatch = kind === "expense";
         } else if (typeFilter === "transfer") {
-            typeMatch = isTransfer;
+            typeMatch = kind === "transfer";
+        } else if (typeFilter === "adjustment") {
+            typeMatch = kind === "adjustment";
         }
 
         // Date filter
@@ -123,7 +146,14 @@ export default function TransactionsList({
         const accountMatch =
             accountFilter === "all" || t.account_id === accountFilter;
 
-        return searchMatch && typeMatch && dateMatch && accountMatch;
+        let categoryMatch = true;
+        if (categoryFilter === "uncategorized") {
+            categoryMatch = !t.category_id;
+        } else if (categoryFilter !== "all") {
+            categoryMatch = t.category_id === categoryFilter;
+        }
+
+        return searchMatch && typeMatch && dateMatch && accountMatch && categoryMatch;
     });
 
     // Group by date
@@ -165,10 +195,11 @@ export default function TransactionsList({
         if (!confirm(`¿Estás seguro de que quieres eliminar ${selectedItems.size} transacciones?`)) return;
 
         try {
+            const ids = collectDeleteIds(transactions, selectedItems);
             const { error } = await supabase
                 .from("transactions")
                 .delete()
-                .in("id", Array.from(selectedItems));
+                .in("id", ids);
 
             if (error) throw error;
 
@@ -188,10 +219,11 @@ export default function TransactionsList({
 
         setIsDeletingSingle(true);
         try {
+            const ids = collectDeleteIds(transactions, [transactionToDelete.id]);
             const { error } = await supabase
                 .from("transactions")
                 .delete()
-                .eq("id", transactionToDelete.id);
+                .in("id", ids);
 
             if (error) throw error;
 
@@ -265,6 +297,7 @@ export default function TransactionsList({
                                 <SelectItem value="income">Ingresos</SelectItem>
                                 <SelectItem value="expense">Gastos</SelectItem>
                                 <SelectItem value="transfer">Transferencias</SelectItem>
+                                <SelectItem value="adjustment">Reconciliar</SelectItem>
                             </SelectContent>
                         </Select>
 
@@ -282,6 +315,28 @@ export default function TransactionsList({
                                 <SelectItem value="today">Hoy</SelectItem>
                                 <SelectItem value="week">Última semana</SelectItem>
                                 <SelectItem value="month">Último mes</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        {/* Category Filter */}
+                        <Select
+                            value={categoryFilter}
+                            onValueChange={handleCategoryChange}
+                        >
+                            <SelectTrigger className="w-44">
+                                <Tag className="w-4 h-4 mr-2" />
+                                <SelectValue placeholder="Categoría" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Todas las categorías</SelectItem>
+                                <SelectItem value="uncategorized">Sin categoría</SelectItem>
+                                {[...categories]
+                                    .sort((a, b) => a.name.localeCompare(b.name, "es"))
+                                    .map((category) => (
+                                        <SelectItem key={category.id} value={category.id}>
+                                            {category.icon ? `${category.icon} ` : ""}{category.name}
+                                        </SelectItem>
+                                    ))}
                             </SelectContent>
                         </Select>
 
@@ -323,8 +378,10 @@ export default function TransactionsList({
                                     </h3>
                                     <div className="space-y-2">
                                         {groupList.map((transaction) => {
+                                            const kind = getTransactionKind(transaction);
                                             const isIncome = transaction.amount >= 0;
-                                            const isTransfer = Boolean(transaction.description?.toLowerCase().includes("transferencia"));
+                                            const isTransfer = kind === "transfer";
+                                            const isAdjustment = kind === "adjustment";
                                             const formattedAmount = new Intl.NumberFormat("es-ES", {
                                                 style: "currency",
                                                 currency: currency,
@@ -362,14 +419,14 @@ export default function TransactionsList({
                                                         )}
                                                         <div
                                                             className={`p-2.5 rounded-xl shrink-0 ${
-                                                                isTransfer
+                                                                isTransfer || isAdjustment
                                                                     ? "bg-blue-500/10 text-blue-500"
                                                                     : isIncome
                                                                     ? "bg-emerald-500/10 text-emerald-500"
                                                                     : "bg-rose-500/10 text-rose-500"
                                                             }`}
                                                         >
-                                                            {isTransfer ? (
+                                                            {isTransfer || isAdjustment ? (
                                                                 <ArrowLeftRight className="w-5 h-5" />
                                                             ) : isIncome ? (
                                                                 <ArrowDownLeft className="w-5 h-5" />
@@ -411,6 +468,10 @@ export default function TransactionsList({
                                                                         <ArrowLeftRight className="w-3 h-3 mr-1 inline" />
                                                                         Transferencia
                                                                     </Badge>
+                                                                ) : isAdjustment ? (
+                                                                    <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/20">
+                                                                        Reconciliar
+                                                                    </Badge>
                                                                 ) : (
                                                                     <Badge variant="secondary" className="text-xs">
                                                                         Sin categoría
@@ -440,7 +501,11 @@ export default function TransactionsList({
                                                     <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-3">
                                                         <span
                                                             className={`font-bold text-base sm:text-lg ${
-                                                                isIncome ? "text-emerald-500" : "text-rose-500"
+                                                                isTransfer || isAdjustment
+                                                                    ? "text-blue-500"
+                                                                    : isIncome
+                                                                    ? "text-emerald-500"
+                                                                    : "text-rose-500"
                                                             }`}
                                                         >
                                                             {isIncome ? "+" : "-"}{formattedAmount}

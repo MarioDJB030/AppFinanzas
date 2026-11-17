@@ -39,7 +39,7 @@ export default async function BudgetsPage() {
         supabase.from("budgets").select(`*, category:categories(*)`).eq("user_id", user.id),
         supabase
             .from("transactions")
-            .select("amount, category_id, date, categories!inner(type)")
+            .select("amount, category_id, date, kind")
             .eq("user_id", user.id)
             .gte("date", startOfPeriod)
             .lte("date", endOfPeriod)
@@ -50,7 +50,9 @@ export default async function BudgetsPage() {
     }
 
     // Filter for expenses
-    const expenses = rawExpenses?.filter((tx: any) => tx.categories?.type === 'expense') || [];
+    const expenses = rawExpenses?.filter((tx: any) =>
+        tx.kind !== "transfer" && tx.kind !== "adjustment"
+    ) || [];
 
     // 6. Calculate progress per category
     const spendingMap = new Map<string, number>();
@@ -58,14 +60,14 @@ export default async function BudgetsPage() {
     expenses?.forEach((tx) => {
         if (tx.category_id) {
             const current = spendingMap.get(tx.category_id) || 0;
-            spendingMap.set(tx.category_id, current + Number(tx.amount));
+            spendingMap.set(tx.category_id, current + -Number(tx.amount));
         }
     });
 
     // 7. Combine and Sort
     const budgetItems = (budgets as Budget[] || []).map((budget) => {
         const rawSpent = spendingMap.get(budget.category_id) || 0;
-        const spent = Math.abs(rawSpent);
+        const spent = Math.max(0, rawSpent);
         const limit = budget.amount_limit;
         const percentage = (spent / limit) * 100;
 

@@ -99,7 +99,7 @@ export default function GoalCard({ goal, currency = "EUR", accounts = [] }: Goal
                     date: new Date().toISOString().split("T")[0],
                     is_recurring: false,
                     goal_id: goal.id,
-                    // category_id can be null since it's a transfer to/from a goal
+                    kind: transactionAmount >= 0 ? "income" : "expense",
                 });
 
             if (txError) throw txError;

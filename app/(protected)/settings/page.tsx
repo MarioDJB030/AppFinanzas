@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { User, Settings2, Trash2, Download, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
+import { getTransactionKind } from "@/utils/transactionKind";
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<UserSettings | null>(null);
@@ -107,6 +108,12 @@ export default function SettingsPage() {
             }
 
             // Convert to CSV
+            const kindLabels = {
+                income: "Ingreso",
+                expense: "Gasto",
+                transfer: "Transferencia",
+                adjustment: "Ajuste",
+            } as const;
             const headers = ["Fecha", "Descripción", "Monto", "Categoría", "Cuenta", "Tipo"];
             const rows = transactions.map((t: any) => [
                 t.date,
@@ -114,7 +121,7 @@ export default function SettingsPage() {
                 t.amount,
                 t.category?.name || "Sin categoría",
                 t.account?.name || "Desconocido",
-                t.amount >= 0 ? "Ingreso" : "Gasto"
+                kindLabels[getTransactionKind(t)],
             ]);
 
             const csvContent = [

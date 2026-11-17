@@ -32,7 +32,7 @@ export async function getFinancialAdvice(transactions: any[], budgets: any[], cu
 
         // Process transactions (only expenses)
         transactions.forEach((t) => {
-            if (t.amount < 0 || (t.category && t.category.type === 'expense')) {
+            if (t.kind !== "transfer" && t.kind !== "adjustment" && t.amount < 0) {
                 const categoryName = t.category?.name || "Sin categoría";
                 const amount = Math.abs(t.amount);
                 expensesByCategory[categoryName] = (expensesByCategory[categoryName] || 0) + amount;

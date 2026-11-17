@@ -4,20 +4,18 @@ import { SupabaseClient } from "@supabase/supabase-js";
  * Default categories to create for new users
  */
 const DEFAULT_CATEGORIES = [
-    // Income categories
-    { name: "Salario", type: "income", icon: "💰" },
-    { name: "Freelance", type: "income", icon: "💻" },
-    { name: "Inversiones", type: "income", icon: "📈" },
-    { name: "Otros Ingresos", type: "income", icon: "💵" },
-    // Expense categories  
-    { name: "Alimentación", type: "expense", icon: "🍔" },
-    { name: "Transporte", type: "expense", icon: "🚗" },
-    { name: "Vivienda", type: "expense", icon: "🏠" },
-    { name: "Entretenimiento", type: "expense", icon: "🎬" },
-    { name: "Salud", type: "expense", icon: "🏥" },
-    { name: "Compras", type: "expense", icon: "🛒" },
-    { name: "Servicios", type: "expense", icon: "📱" },
-    { name: "Otros Gastos", type: "expense", icon: "📦" },
+    { name: "Salario", type: "both", icon: "💰" },
+    { name: "Freelance", type: "both", icon: "💻" },
+    { name: "Inversiones", type: "both", icon: "📈" },
+    { name: "Otros Ingresos", type: "both", icon: "💵" },
+    { name: "Alimentación", type: "both", icon: "🍔" },
+    { name: "Transporte", type: "both", icon: "🚗" },
+    { name: "Vivienda", type: "both", icon: "🏠" },
+    { name: "Entretenimiento", type: "both", icon: "🎬" },
+    { name: "Salud", type: "both", icon: "🏥" },
+    { name: "Compras", type: "both", icon: "🛒" },
+    { name: "Servicios", type: "both", icon: "📱" },
+    { name: "Otros Gastos", type: "both", icon: "📦" },
 ];
 
 /**

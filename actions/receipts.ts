@@ -164,7 +164,8 @@ export async function createTransactionFromReceipt(
                 date: data.date,
                 category_id: data.categoryId || null,
                 account_id: data.accountId,
-                is_recurring: false
+                is_recurring: false,
+                kind: "expense",
             })
             .select()
             .single();

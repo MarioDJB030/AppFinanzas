@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
@@ -8,6 +9,7 @@ import { PieChart as PieChartIcon } from "lucide-react";
 import CategoryForm from "@/components/categories/CategoryForm";
 
 interface ExpenseData {
+    categoryId: string;
     category: string;
     icon: string;
     amount: number;
@@ -32,7 +34,13 @@ const COLORS = [
 ];
 
 export default function ExpensesChart({ data, totalExpenses, currency = "EUR" }: ExpensesChartProps) {
+    const router = useRouter();
     const [excludedCategories, setExcludedCategories] = useState<Set<string>>(new Set());
+
+    const goToCategory = (categoryId: string) => {
+        const param = encodeURIComponent(categoryId);
+        router.push(`/transactions?category=${param}`);
+    };
 
     const formattedTotal = new Intl.NumberFormat("es-ES", {
         style: "currency",
@@ -60,7 +68,7 @@ export default function ExpensesChart({ data, totalExpenses, currency = "EUR" }:
                             <PieChartIcon className="w-5 h-5 text-muted-foreground" />
                             Gastos por Categoría
                         </span>
-                        <CategoryForm type="expense" />
+                        <CategoryForm />
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center justify-center h-64 text-muted-foreground">
@@ -133,7 +141,7 @@ export default function ExpensesChart({ data, totalExpenses, currency = "EUR" }:
                                             key={`cell-${entry.category}`}
                                             fill={COLORS[originalIndex % COLORS.length]}
                                             className="stroke-background stroke-2 cursor-pointer"
-                                            onClick={() => toggleCategory(entry.category)}
+                                            onClick={() => goToCategory(entry.categoryId)}
                                         />
                                     );
                                 })}

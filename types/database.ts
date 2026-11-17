@@ -27,11 +27,13 @@ export interface Account {
     updated_at?: string;
 }
 
+export type TransactionKind = "income" | "expense" | "transfer" | "adjustment";
+
 export interface Category {
     id: string;
     user_id: string;
     name: string;
-    type: "income" | "expense";
+    type: "income" | "expense" | "both";
     icon: string;
     created_at?: string;
 }
@@ -47,6 +49,8 @@ export interface Transaction {
     is_recurring: boolean;
     recurring_rule_id?: string;
     goal_id?: string | null;
+    kind?: TransactionKind;
+    linked_transaction_id?: string | null;
     created_at?: string;
     // Joined fields
     account?: Account;

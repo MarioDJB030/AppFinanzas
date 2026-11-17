@@ -35,6 +35,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowDownLeft, ArrowUpRight, Loader2, Trash2, Check } from "lucide-react";
 import { toast } from "sonner";
 import type { Account, Category, Transaction } from "@/types/database";
+import { collectDeleteIds, getTransactionKind, kindFromAmount } from "@/utils/transactionKind";
 
 interface EditTransactionDialogProps {
     transaction: Transaction | null;
@@ -77,15 +78,14 @@ export default function EditTransactionDialog({
         }
     }, [transaction, open]);
 
-    const filteredCategories = categories.filter((cat) => cat.type === type);
+    const sortedCategories = [...categories].sort((a, b) =>
+        a.name.localeCompare(b.name, "es")
+    );
+    const currentKind = transaction ? getTransactionKind(transaction) : "expense";
+    const isNeutral = currentKind === "transfer" || currentKind === "adjustment";
 
     const handleTypeChange = (newType: "income" | "expense") => {
         setType(newType);
-        // If current category doesn't match new type, reset to 'none'
-        const currentCategory = categories.find((c) => c.id === categoryId);
-        if (currentCategory && currentCategory.type !== newType) {
-            setCategoryId("none");
-        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -106,7 +106,12 @@ export default function EditTransactionDialog({
         setLoading(true);
 
         try {
-            const finalAmount = type === "expense" ? -Math.abs(parsedAmount) : Math.abs(parsedAmount);
+            const absAmount = Math.abs(parsedAmount);
+            const finalAmount = isNeutral
+                ? (transaction.amount >= 0 ? absAmount : -absAmount)
+                : type === "expense"
+                    ? -absAmount
+                    : absAmount;
 
             const { error } = await supabase
                 .from("transactions")
@@ -114,12 +119,25 @@ export default function EditTransactionDialog({
                     amount: finalAmount,
                     description: description.trim() || null,
                     account_id: accountId,
-                    category_id: categoryId === "none" ? null : categoryId,
+                    category_id: isNeutral ? null : (categoryId === "none" ? null : categoryId),
                     date,
+                    kind: isNeutral ? currentKind : kindFromAmount(finalAmount),
                 })
                 .eq("id", transaction.id);
 
             if (error) throw error;
+
+            if (currentKind === "transfer" && transaction.linked_transaction_id) {
+                const linkedAmount = -finalAmount;
+                const { error: linkedError } = await supabase
+                    .from("transactions")
+                    .update({
+                        amount: linkedAmount,
+                        date,
+                    })
+                    .eq("id", transaction.linked_transaction_id);
+                if (linkedError) throw linkedError;
+            }
 
             toast.success("Transacción modificada correctamente");
             onOpenChange(false);
@@ -137,10 +155,11 @@ export default function EditTransactionDialog({
 
         setDeleting(true);
         try {
+            const ids = collectDeleteIds([transaction], [transaction.id]);
             const { error } = await supabase
                 .from("transactions")
                 .delete()
-                .eq("id", transaction.id);
+                .in("id", ids);
 
             if (error) throw error;
 
@@ -171,7 +190,7 @@ export default function EditTransactionDialog({
                         </DialogDescription>
                     </DialogHeader>
 
-                    {/* Switch Income <-> Expense */}
+                    {!isNeutral && (
                     <Tabs
                         value={type}
                         onValueChange={(v) => handleTypeChange(v as "income" | "expense")}
@@ -188,6 +207,14 @@ export default function EditTransactionDialog({
                             </TabsTrigger>
                         </TabsList>
                     </Tabs>
+                    )}
+                    {isNeutral && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                            {currentKind === "transfer"
+                                ? "Esta transferencia no cuenta como ingreso ni como gasto. Si cambias el importe, se actualizará también la otra cuenta."
+                                : "Este ajuste de saldo no cuenta como ingreso ni como gasto."}
+                        </p>
+                    )}
 
                     <form onSubmit={handleSubmit} className="space-y-4 mt-2">
                         {/* Amount */}
@@ -239,6 +266,7 @@ export default function EditTransactionDialog({
                                 </Select>
                             </div>
 
+                            {!isNeutral && (
                             <div className="space-y-2">
                                 <Label>Categoría</Label>
                                 <Select value={categoryId} onValueChange={setCategoryId}>
@@ -247,7 +275,7 @@ export default function EditTransactionDialog({
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="none">Sin categoría</SelectItem>
-                                        {filteredCategories.map((category) => (
+                                        {sortedCategories.map((category) => (
                                             <SelectItem key={category.id} value={category.id}>
                                                 {category.icon ? `${category.icon} ` : ""}{category.name}
                                             </SelectItem>
@@ -255,6 +283,7 @@ export default function EditTransactionDialog({
                                     </SelectContent>
                                 </Select>
                             </div>
+                            )}
                         </div>
 
                         {/* Date */}

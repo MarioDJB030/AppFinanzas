@@ -202,14 +202,12 @@ export default function CSVImporter({ accounts, categories }: CSVImporterProps) 
 
                     if (!finalCategoryId) {
                         if (amountValue >= 0) {
-                            // Find "Otros Ingresos" or first income category
-                            const incomeCat = categories.find(c => c.name === "Otros Ingresos" && c.type === "income")
-                                || categories.find(c => c.type === "income");
+                            const incomeCat = categories.find(c => c.name === "Otros Ingresos")
+                                || categories[0];
                             if (incomeCat) finalCategoryId = incomeCat.id;
                         } else {
-                            // Find "Otros Gastos" or first expense category
-                            const expenseCat = categories.find(c => c.name === "Otros Gastos" && c.type === "expense")
-                                || categories.find(c => c.type === "expense");
+                            const expenseCat = categories.find(c => c.name === "Otros Gastos")
+                                || categories[0];
                             if (expenseCat) finalCategoryId = expenseCat.id;
                         }
                     }
@@ -226,6 +224,7 @@ export default function CSVImporter({ accounts, categories }: CSVImporterProps) 
                         description: descriptionValue,
                         date: parsedDate.toISOString().split("T")[0],
                         is_recurring: false,
+                        kind: amountValue >= 0 ? "income" : "expense",
                     });
 
                     if (error) {
